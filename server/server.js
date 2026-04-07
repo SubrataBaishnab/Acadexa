@@ -53,7 +53,7 @@ app.post('/api/verify-eligibility', upload.single('transcript'), async (req, res
 
         // Initialize Gemini
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" }); // or gemini-1.5-flash
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
         const prompt = `
             You are an expert BRAC University academic advisor. Look at this uploaded transcript.
@@ -72,19 +72,15 @@ app.post('/api/verify-eligibility', upload.single('transcript'), async (req, res
         
         const imagePart = fileToGenerativePart(req.file.path, req.file.mimetype);
         
-        // Ask Gemini!
+        // Ask Gemini
         const result = await model.generateContent([prompt, imagePart]);
         let aiResponseText = result.response.text().trim();
         
-        // Clean up markdown if Gemini accidentally adds it
-        if (aiResponseText.startsWith("```json")) {
-            aiResponseText = aiResponseText.replace(/^```json/, '').replace(/```$/, '').trim();
-        }
+        // MORE AGGRESSIVE JSON CLEANUP
+        // This removes markdown ticks globally, even if there are newlines
+        aiResponseText = aiResponseText.replace(/```json/gi, '').replace(/```/g, '').trim();
 
         const aiDecision = JSON.parse(aiResponseText);
-
-        // Delete the temporary file
-        fs.unlinkSync(req.file.path);
 
         const finalStatus = aiDecision.eligible ? "Eligible - Pending Supervisor" : "Denied - Missing Prerequisites";
 
@@ -103,8 +99,15 @@ app.post('/api/verify-eligibility', upload.single('transcript'), async (req, res
         });
 
     } catch (error) {
-        console.error("Gemini AI Error:", error);
-        res.status(500).json({ error: "Failed to process transcript with AI." });
+        // Log the actual error message so you can see exactly what failed
+        console.error("Backend Error Details:", error.message || error);
+        res.status(500).json({ error: "Failed to process transcript: " + (error.message || "Unknown error") });
+    } finally {
+        // THIS ALWAYS RUNS. Guaranteed file cleanup!
+        if (req.file && fs.existsSync(req.file.path)) {
+            fs.unlinkSync(req.file.path);
+            console.log(`🗑️ Cleaned up temporary file: ${req.file.filename}`);
+        }
     }
 });
 

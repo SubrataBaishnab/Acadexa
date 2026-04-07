@@ -13,7 +13,7 @@ function App() {
     if (!studentId) return alert("Please enter a Student ID!");
 
     setIsScanning(true);
-    setResult(null); // Clear previous results
+    setResult(null);
 
     const formData = new FormData();
     formData.append('transcript', file);
@@ -21,15 +21,12 @@ function App() {
 
     try {
       const response = await axios.post('http://127.0.0.1:5005/api/verify-eligibility', formData);
-      
-      // Save the full intelligence package to our React state
       setResult({
         status: response.data.status,
         message: response.data.message,
         credits: response.data.credits,
         suggestions: response.data.suggestions
       });
-
     } catch (error) {
       console.error(error);
       alert("Upload failed. Check the console for details.");
@@ -39,76 +36,96 @@ function App() {
   };
 
   return (
-    <div style={{ padding: '50px', fontFamily: 'sans-serif', maxWidth: '500px' }}>
-      <h2>Acadexa: Academic Eligibility Verifier</h2>
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center py-12 px-4 sm:px-6 lg:px-8 font-sans">
       
-      <form onSubmit={handleUpload} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-        <input 
-          type="text" 
-          placeholder="Enter Student ID (e.g. 21101234)" 
-          value={studentId} 
-          onChange={(e) => setStudentId(e.target.value)} 
-          style={{ padding: '8px' }}
-        />
+      {/* Main Card */}
+      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
         
-        <input 
-          type="file" 
-          accept=".pdf,.png,.jpg" 
-          onChange={(e) => setFile(e.target.files[0])} 
-        />
-        
-        <button 
-          type="submit" 
-          disabled={isScanning}
-          style={{ 
-            padding: '10px', 
-            cursor: isScanning ? 'not-allowed' : 'pointer', 
-            backgroundColor: isScanning ? '#9ca3af' : '#007BFF', 
-            color: 'white', 
-            border: 'none', 
-            borderRadius: '4px' 
-          }}>
-          {isScanning ? 'AI is analyzing...' : 'Verify & Save to Database'}
-        </button>
-      </form>
+        {/* Header */}
+        <div className="bg-blue-600 px-6 py-8 text-center">
+          <h2 className="text-3xl font-extrabold text-white tracking-tight">Acadexa</h2>
+          <p className="text-blue-100 mt-2 text-sm font-medium">AI Academic Eligibility Verifier</p>
+        </div>
 
-      {/* --- AI RESULTS DISPLAY --- */}
+        {/* Upload Form */}
+        <div className="p-8">
+          <form onSubmit={handleUpload} className="space-y-6">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Student ID</label>
+              <input 
+                type="text" 
+                placeholder="e.g. 21101234" 
+                value={studentId} 
+                onChange={(e) => setStudentId(e.target.value)} 
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none text-gray-800"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Upload Transcript</label>
+              <input 
+                type="file" 
+                accept=".pdf,.png,.jpg" 
+                onChange={(e) => setFile(e.target.files[0])} 
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer transition-all"
+              />
+            </div>
+            
+            <button 
+              type="submit" 
+              disabled={isScanning}
+              className={`w-full py-3 px-4 rounded-lg text-white font-bold text-lg shadow-md transition-all ${
+                isScanning 
+                  ? 'bg-blue-400 cursor-not-allowed animate-pulse' 
+                  : 'bg-blue-600 hover:bg-blue-700 hover:shadow-lg active:transform active:scale-95'
+              }`}
+            >
+              {isScanning ? 'AI is analyzing...' : 'Verify Transcript'}
+            </button>
+          </form>
+        </div>
+      </div>
+
+      {/* Results Dashboard */}
       {result && (
-        <div style={{ 
-          marginTop: '25px', 
-          padding: '15px', 
-          borderRadius: '8px', 
-          border: result.status === 'Approved' ? '2px solid #4ade80' : '2px solid #f87171',
-          backgroundColor: result.status === 'Approved' ? '#f0fdf4' : '#fef2f2'
-        }}>
+        <div className={`mt-8 max-w-md w-full rounded-2xl p-6 shadow-lg border-2 animate-fadeIn ${
+          result.status === 'Approved' 
+            ? 'bg-green-50 border-green-400' 
+            : 'bg-red-50 border-red-400'
+        }`}>
           
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-            <h3 style={{ margin: 0, color: result.status === 'Approved' ? '#166534' : '#991b1b' }}>
+          <div className="flex justify-between items-center mb-4 border-b border-opacity-20 pb-3 border-black">
+            <h3 className={`text-2xl font-black ${result.status === 'Approved' ? 'text-green-700' : 'text-red-700'}`}>
               {result.status}
             </h3>
             {result.credits && (
-              <span style={{ fontWeight: 'bold', background: 'white', padding: '4px 8px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '14px' }}>
-                Total Credits: {result.credits}
+              <span className="bg-white px-3 py-1 rounded-md shadow-sm border text-gray-800 font-bold text-sm">
+                Credits: {result.credits}
               </span>
             )}
           </div>
           
-          <p style={{ marginTop: 0 }}>{result.message}</p>
+          <p className="text-gray-700 font-medium">{result.message}</p>
 
-          {/* Render Course Suggestions if Gemini found any */}
+          {/* AI Course Recommendations */}
           {result.suggestions && result.suggestions.length > 0 && (
-            <div style={{ marginTop: '15px', padding: '15px', backgroundColor: '#eff6ff', borderRadius: '6px', border: '1px solid #bfdbfe' }}>
-              <h4 style={{ margin: '0 0 10px 0', color: '#1e40af' }}>💡 AI Recommended Next Courses:</h4>
-              <ul style={{ margin: 0, paddingLeft: '20px', color: '#1e3a8a', fontSize: '14px', lineHeight: '1.5' }}>
+            <div className="mt-6 bg-white p-5 rounded-xl shadow-sm border border-blue-100">
+              <h4 className="text-blue-800 font-bold text-sm uppercase tracking-wider flex items-center gap-2 mb-3">
+                <span>💡</span> Recommended Next Courses
+              </h4>
+              <ul className="space-y-2">
                 {result.suggestions.map((course, index) => (
-                  <li key={index}>{course}</li>
+                  <li key={index} className="flex items-start">
+                    <span className="text-blue-500 mr-2">•</span>
+                    <span className="text-gray-700 text-sm font-medium">{course}</span>
+                  </li>
                 ))}
               </ul>
             </div>
           )}
-          
         </div>
       )}
+
     </div>
   );
 }
