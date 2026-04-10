@@ -9,6 +9,9 @@ require('dotenv').config();
 const supervisorRoutes = require('./routes/supervisorRoutes');
 const professorRoutes = require('./routes/professorRoutes');
 const chatbotRoutes = require('./routes/chatbotRoutes');
+const deadlineRoutes = require('./routes/deadlineRoutes');
+const vivaRoutes = require('./routes/vivaRoutes');
+const progressRoutes = require('./routes/progressRoutes');
 
 const app = express();
 
@@ -117,6 +120,9 @@ app.post('/api/verify-eligibility', upload.single('transcript'), async (req, res
 app.use('/api/supervisors', supervisorRoutes);
 app.use('/api/professors', professorRoutes);
 app.use('/api/chatbot', chatbotRoutes);
+app.use('/api/deadline', deadlineRoutes);
+app.use('/api/viva', vivaRoutes);
+app.use('/api/progress', progressRoutes);
 
 // Health Check Route
 app.get('/api/health', (req, res) => {
