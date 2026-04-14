@@ -67,7 +67,7 @@ const getDeadlineByStudent = async (req, res) => {
 // PUT /api/deadline/update/:id
 const updateDeadline = async (req, res) => {
   try {
-    const { progressPercent, tasks, deadlineDate } = req.body;
+    const { progressPercent, tasks, deadlineDate, thesisTitle } = req.body;
 
     const existing = await Deadline.findById(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Deadline not found' });
@@ -84,7 +84,7 @@ const updateDeadline = async (req, res) => {
 
     const updated = await Deadline.findByIdAndUpdate(
       req.params.id,
-      { progressPercent: updatedProgress, tasks: updatedTasks, deadlineDate: updatedDeadline, pressureScore, pressureLevel },
+      { thesisTitle: thesisTitle ?? existing.thesisTitle, progressPercent: updatedProgress, tasks: updatedTasks, deadlineDate: updatedDeadline, pressureScore, pressureLevel },
       { new: true }
     );
 

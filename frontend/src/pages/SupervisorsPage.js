@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useSupervisors } from '../hooks/useAdvisors';
 import SupervisorCard from '../components/SupervisorCard';
-import RecommendationFilter from '../components/RecommendationFilter';
+import SupervisorFilter from '../components/SupervisorFilter';
+import SupervisorSearchBar from '../components/SupervisorSearchBar';
 
 const SupervisorsPage = () => {
-  const { supervisors, loading, error, fetchAllSupervisors, fetchRecommendations } = useSupervisors();
+  const { supervisors, loading, error, fetchAllSupervisors } = useSupervisors();
   const [filteredSupervisors, setFilteredSupervisors] = useState([]);
-  const [view, setView] = useState('all'); // 'all' or 'recommendations'
+  const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({
-    researchInterests: [],
-    minMatchScore: 0,
+    status: 'All',
+    level: 'Both',
+    type: 'Thesis',
   });
 
   useEffect(() => {
@@ -18,34 +20,59 @@ const SupervisorsPage = () => {
 
   useEffect(() => {
     applyFilters();
-  }, [supervisors, filters]);
+  }, [supervisors, filters, searchTerm]);
 
   const applyFilters = () => {
     let filtered = supervisors;
 
-    if (view === 'recommendations' && filters.researchInterests.length > 0) {
-      filtered = filtered.filter(s => s.matchScore >= filters.minMatchScore);
+    // Filter by search term
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase().trim();
+      filtered = filtered.filter(s => {
+        // Search by name
+        const nameMatch = 
+          s.firstName.toLowerCase().includes(term) || 
+          s.lastName.toLowerCase().includes(term);
+        
+        // Search by email
+        const emailMatch = s.email.toLowerCase().includes(term);
+        
+        // Search by code
+        const codeMatch = s.code && s.code.toLowerCase().includes(term);
+        
+        // Search by designation
+        const designationMatch = s.designation && s.designation.toLowerCase().includes(term);
+
+        return nameMatch || emailMatch || codeMatch || designationMatch;
+      });
     }
+
+    // Filter by status
+    if (filters.status === 'Accepting') {
+      filtered = filtered.filter(s => s.isAcceptingStudents);
+    } else if (filters.status === 'Not Accepting') {
+      filtered = filtered.filter(s => !s.isAcceptingStudents);
+    }
+
+    // Filter by level
+    if (filters.level === 'Undergraduate') {
+      filtered = filtered.filter(s => s.supervisesUndergrad);
+    } else if (filters.level === 'Postgraduate') {
+      filtered = filtered.filter(s => s.supervisesPostgrad);
+    }
+
+    // Filter by type (if applicable)
+    // This can be extended if the supervisor model has project/thesis/internship fields
 
     setFilteredSupervisors(filtered);
-  };
-
-  const handleGetRecommendations = async () => {
-    if (filters.researchInterests.length === 0) {
-      alert('Please select at least one research interest');
-      return;
-    }
-    await fetchRecommendations(filters.researchInterests, []);
-    setView('recommendations');
   };
 
   const handleFilterChange = (newFilters) => {
     setFilters(newFilters);
   };
 
-  const handleContact = (supervisor) => {
-    alert(`Contact ${supervisor.firstName} ${supervisor.lastName} at ${supervisor.email}`);
-    // TODO: Implement contact modal or navigation
+  const handleSearch = (term) => {
+    setSearchTerm(term);
   };
 
   return (
@@ -55,78 +82,68 @@ const SupervisorsPage = () => {
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">Find Your Supervisor</h1>
           <p className="text-lg text-gray-600">
-            Browse available supervisors or get AI-powered recommendations based on your research interests
+            Browse available supervisors and filter by your preferences
           </p>
         </div>
 
-        {/* View Toggle */}
-        <div className="flex gap-4 mb-6">
-          <button
-            onClick={() => setView('all')}
-            className={`px-6 py-2 rounded-lg font-semibold transition-colors ${
-              view === 'all'
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            All Supervisors ({supervisors.length})
-          </button>
-          <button
-            onClick={() => setView('recommendations')}
-            className={`px-6 py-2 rounded-lg font-semibold transition-colors ${
-              view === 'recommendations'
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            Get Recommendations
-          </button>
+        {/* Search Bar */}
+        <SupervisorSearchBar onSearch={handleSearch} />
+
+        {/* Filter Section */}
+        <div className="grid grid-cols-4 gap-6 mb-6">
+          <div className="col-span-4 lg:col-span-1">
+            <SupervisorFilter onFilterChange={handleFilterChange} />
+          </div>
+
+          <div className="col-span-4 lg:col-span-3">
+            {/* Error Message */}
+            {error && (
+              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-6">
+                {error}
+              </div>
+            )}
+
+            {/* Loading */}
+            {loading && (
+              <div className="text-center py-12">
+                <p className="text-gray-600 text-lg">Loading supervisors...</p>
+              </div>
+            )}
+
+            {/* Results Count */}
+            {!loading && (
+              <div className="mb-6 text-gray-600">
+                <p className="text-sm">
+                  {searchTerm ? (
+                    <>Showing <strong>{filteredSupervisors.length}</strong> result{filteredSupervisors.length !== 1 ? 's' : ''} for "{searchTerm}"</>
+                  ) : (
+                    <>Showing <strong>{filteredSupervisors.length}</strong> supervisor{filteredSupervisors.length !== 1 ? 's' : ''}</>
+                  )}
+                </p>
+              </div>
+            )}
+
+            {/* Supervisors Grid */}
+            {!loading && filteredSupervisors.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {filteredSupervisors.map(supervisor => (
+                  <SupervisorCard
+                    key={supervisor._id}
+                    supervisor={supervisor}
+                  />
+                ))}
+              </div>
+            ) : !loading ? (
+              <div className="text-center py-12 bg-white rounded-lg">
+                <p className="text-gray-500 text-lg">
+                  {searchTerm 
+                    ? `No supervisors found matching "${searchTerm}". Try different search terms.`
+                    : 'No supervisors match your filters. Try adjusting your preferences.'}
+                </p>
+              </div>
+            ) : null}
+          </div>
         </div>
-
-        {view === 'recommendations' && (
-          <RecommendationFilter onFilterChange={handleFilterChange} />
-        )}
-
-        {/* Error Message */}
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-6">
-            {error}
-          </div>
-        )}
-
-        {/* Loading */}
-        {loading && (
-          <div className="text-center py-12">
-            <div
-              className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"
-            ></div>
-            <p className="mt-4 text-gray-600">Loading supervisors...</p>
-          </div>
-        )}
-
-        {/* Supervisors Grid */}
-        {!loading && filteredSupervisors.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredSupervisors.map((supervisor) => (
-              <SupervisorCard
-                key={supervisor._id}
-                supervisor={supervisor}
-                onContact={handleContact}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Empty State */}
-        {!loading && filteredSupervisors.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-gray-600 text-lg">
-              {view === 'all'
-                ? 'No supervisors found. Try again later.'
-                : 'No supervisors match your criteria. Try adjusting your filters.'}
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );

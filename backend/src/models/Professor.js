@@ -92,11 +92,10 @@ const professorSchema = new mongoose.Schema({
   },
 });
 
-// Index for searching
-professorSchema.index({ 
-  'researchAreas': 1, 
-  'country': 1,
-  'researchKeywords': 1 
-});
+// Indexes for searching
+professorSchema.index({ 'researchAreas': 1 });
+professorSchema.index({ 'country': 1 });
+professorSchema.index({ 'university': 1 });
+professorSchema.index({ 'acceptsPhDStudents': 1, 'country': 1 });
 
 module.exports = mongoose.model('Professor', professorSchema);

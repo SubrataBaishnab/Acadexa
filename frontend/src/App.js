@@ -7,20 +7,25 @@ import DeadlinePage from './pages/DeadlinePage';
 import VivaPage from './pages/VivaPage';
 import ProgressPage from './pages/ProgressPage';
 import SupervisorProgressPage from './pages/SupervisorProgressPage';
+import ThesisArchivePage from './pages/ThesisArchivePage'; // NEW
+import SynopsisDashboard from './pages/SynopsisDashboard'; // NEW
 import ChatbotWidget from './components/ChatbotWidget';
+import { AuthProvider } from './context/AuthContext';
 import './App.css';
 
 function NavBar() {
   const location = useLocation();
 
   const navLinks = [
-    { to: '/', label: 'Verify Eligibility', hoverColor: 'hover:text-green-600' },
-    { to: '/supervisors', label: 'Find Supervisor', hoverColor: 'hover:text-blue-600' },
-    { to: '/phd-professors', label: 'Find PhD Advisor', hoverColor: 'hover:text-purple-600' },
-    { to: '/deadline', label: 'Deadline Tracker', hoverColor: 'hover:text-orange-500' },
-    { to: '/viva-prep', label: 'Viva Prep', hoverColor: 'hover:text-teal-600' },
-    { to: '/progress', label: 'My Progress', hoverColor: 'hover:text-indigo-600' },
-    { to: '/supervisor-progress', label: 'Student Progress', hoverColor: 'hover:text-pink-600' },
+    { to: '/',                   label: 'Verify Eligibility', hoverColor: 'hover:text-green-600' },
+    { to: '/supervisors',        label: 'Supervisors',        hoverColor: 'hover:text-blue-600' },
+    { to: '/phd-professors',     label: 'Grow',               hoverColor: 'hover:text-purple-600' },
+    { to: '/deadline',           label: 'Deadline Tracker',   hoverColor: 'hover:text-orange-500' },
+    { to: '/viva-prep',          label: 'Viva Prep',          hoverColor: 'hover:text-teal-600' },
+    { to: '/progress',           label: 'My Progress',        hoverColor: 'hover:text-indigo-600' },
+    { to: '/supervisor-progress',label: 'Student Progress',   hoverColor: 'hover:text-pink-600' },
+    { to: '/thesis-archive',     label: 'Thesis Archive',     hoverColor: 'hover:text-amber-600' }, 
+    { to: '/synopsis',           label: 'Synopsis',           hoverColor: 'hover:text-cyan-600' }, // NEW
   ];
 
   return (
@@ -29,7 +34,7 @@ function NavBar() {
         <Link to="/" className="text-2xl font-bold text-blue-600">
           Acadexa
         </Link>
-        <div className="flex gap-6">
+        <div className="flex gap-6 flex-wrap">
           {navLinks.map(({ to, label, hoverColor }) => (
             <Link
               key={to}
@@ -51,25 +56,27 @@ function NavBar() {
 
 function App() {
   return (
-    <Router>
-      <div className="App">
-        <NavBar />
+    <AuthProvider>
+      <Router>
+        <div className="App">
+          <NavBar />
 
-        {/* Routes */}
         <Routes>
-          <Route path="/" element={<EligibilityPage />} />
-          <Route path="/supervisors" element={<SupervisorsPage />} />
-          <Route path="/phd-professors" element={<ProfessorsPage />} />
-          <Route path="/progress" element={<ProgressPage />} />
+          <Route path="/"                    element={<EligibilityPage />} />
+          <Route path="/supervisors"         element={<SupervisorsPage />} />
+          <Route path="/phd-professors"      element={<ProfessorsPage />} />
+          <Route path="/progress"            element={<ProgressPage />} />
           <Route path="/supervisor-progress" element={<SupervisorProgressPage />} />
-          <Route path="/deadline" element={<DeadlinePage />} />
-          <Route path="/viva-prep" element={<VivaPage />} />
+          <Route path="/deadline"            element={<DeadlinePage />} />
+          <Route path="/viva-prep"           element={<VivaPage />} />
+          <Route path="/thesis-archive"      element={<ThesisArchivePage />} /> {/* NEW */}
+          <Route path="/synopsis"            element={<SynopsisDashboard />} /> {/* NEW */}
         </Routes>
 
-        {/* Chatbot Widget */}
         <ChatbotWidget />
-      </div>
-    </Router>
+        </div>
+      </Router>
+    </AuthProvider>
   );
 }
 
