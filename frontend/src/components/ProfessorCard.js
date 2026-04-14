@@ -33,12 +33,16 @@ const ProfessorCard = ({ professor, onContact }) => {
       </div>
 
       <div className="mb-4 grid grid-cols-2 gap-2">
-        <p className="text-sm text-gray-600">
-          <strong>H-Index:</strong> {professor.h_index || 'N/A'}
-        </p>
-        <p className="text-sm text-gray-600">
-          <strong>Publications:</strong> {professor.publicationsCount || 0}
-        </p>
+        {professor.h_index && (
+          <p className="text-sm text-gray-600">
+            <strong>H-Index:</strong> {professor.h_index}
+          </p>
+        )}
+        {professor.publicationsCount > 0 && (
+          <p className="text-sm text-gray-600">
+            <strong>Publications:</strong> {professor.publicationsCount}
+          </p>
+        )}
         {professor.fundingAvailable && (
           <p className="text-sm text-green-600 font-semibold">
             ✓ Funding Available
@@ -57,30 +61,16 @@ const ProfessorCard = ({ professor, onContact }) => {
         </div>
       )}
 
-      {professor.universityProfileUrl && (
-        <div className="mb-4">
-          <a
-            href={professor.universityProfileUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-600 text-sm hover:underline"
-          >
-            View University Profile ↗
-          </a>
-        </div>
-      )}
-
-      <div className="flex gap-2">
-        <button
-          onClick={() => onContact(professor)}
-          className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 rounded-lg transition-colors"
-        >
-          Contact
-        </button>
-        <button className="flex-1 border border-purple-600 text-purple-600 hover:bg-purple-50 font-semibold py-2 rounded-lg transition-colors">
-          View Profile
-        </button>
-      </div>
+      <button 
+        onClick={() => {
+          if (professor.universityProfileUrl) {
+            window.open(professor.universityProfileUrl, '_blank');
+          }
+        }}
+        className="w-full border border-purple-600 text-purple-600 hover:bg-purple-50 font-semibold py-2 rounded-lg transition-colors"
+      >
+        View Profile
+      </button>
     </div>
   );
 };

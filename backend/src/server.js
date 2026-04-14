@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const multer = require('multer');
 const fs = require('fs');
-const pdfParse = require('pdf-parse'); // NEW: The free PDF extractor
+const pdfParse = require('pdf-parse'); 
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 require('dotenv').config();
 
@@ -13,6 +13,9 @@ const chatbotRoutes = require('./routes/chatbotRoutes');
 const deadlineRoutes = require('./routes/deadlineRoutes');
 const vivaRoutes = require('./routes/vivaRoutes');
 const progressRoutes = require('./routes/progressRoutes');
+const thesisArchiveRoutes = require('./routes/thesisArchiveRoutes'); // NEW
+const synopsisRoutes = require('./routes/synopsisRoutes'); // NEW
+const xlsx = require("xlsx");
 
 const app = express();
 
@@ -46,11 +49,9 @@ async function callGemini(modelName, prompt, path, mimeType, isPdf) {
     const model = genAI.getGenerativeModel({ model: modelName });
     
     if (isPdf) {
-        // Text-only request
         const result = await model.generateContent(prompt);
         return result.response.text();
     } else {
-        // Vision request
         const imagePart = { inlineData: { data: Buffer.from(fs.readFileSync(path)).toString("base64"), mimeType } };
         const result = await model.generateContent([prompt, imagePart]);
         return result.response.text();
@@ -59,10 +60,9 @@ async function callGemini(modelName, prompt, path, mimeType, isPdf) {
 
 // --- OPENROUTER WRAPPER ---
 async function callOpenRouter(prompt, path, mimeType, isPdf) {
-    let messageContent = prompt; // Default to standard string for pure text (PDFs)
+    let messageContent = prompt; 
 
     if (!isPdf) {
-        // Switch to array format for vision (Images)
         const base64Image = Buffer.from(fs.readFileSync(path)).toString("base64");
         messageContent = [
             { type: "text", text: prompt },
@@ -92,11 +92,10 @@ async function callOpenRouter(prompt, path, mimeType, isPdf) {
 
 // --- GROQ WRAPPER ---
 async function callGroq(prompt, path, mimeType, isPdf) {
-    let messageContent = prompt; // Default to string for text
+    let messageContent = prompt; 
     let targetModel = isPdf ? "llama3-8b-8192" : "llama-3.2-11b-vision-preview";
 
     if (!isPdf) {
-        // Switch to array format for vision
         const base64Image = Buffer.from(fs.readFileSync(path)).toString("base64");
         messageContent = [
             { type: "text", text: prompt },
@@ -154,12 +153,71 @@ async function analyzeTranscriptWithFallback(prompt, path, mimeType, isPdf) {
     throw new Error("Critical: All AI models failed.");
 }
 
-// --- THE ROUTE ---
+// --- STUDENT STATUS ROUTE ---
+app.get('/api/registration/status/:student_id', async (req, res) => {
+    try {
+        const record = await Registration.findOne({ student_id: req.params.student_id });
+        if (!record) {
+            return res.status(404).json({ message: "No registration found." });
+        }
+        res.json({ data: record });
+    } catch (error) {
+        res.status(500).json({ error: "Server error checking status." });
+    }
+});
+
+app.post('/api/import-excel', upload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ message: "No Excel file uploaded" });
+        }
+
+        const workbook = xlsx.readFile(req.file.path);
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const data = xlsx.utils.sheet_to_json(sheet);
+
+        console.log("📊 Excel Data:", data);
+
+        await Registration.insertMany(
+            data.map(item => ({
+                student_id: item.student_id || item.StudentID,
+                thesis_title: item.thesis_title || "Imported",
+                group_members: item.group_members || [],
+                supervisor_id: item.supervisor_id || null,
+                status: item.status || "Imported"
+            }))
+        );
+
+        res.json({
+            message: "Excel imported successfully",
+            count: data.length
+        });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Import failed" });
+    } finally {
+        if (req.file && fs.existsSync(req.file.path)) {
+            fs.unlinkSync(req.file.path);
+        }
+    }
+});
+
 app.post('/api/verify-eligibility', upload.single('transcript'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ message: "No transcript uploaded." });
         
         const studentId = req.body.student_id || "Unknown";
+        
+        const existingRecord = await Registration.findOne({ student_id: studentId });
+        if (existingRecord) {
+            if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+            return res.status(400).json({ 
+                error: "Duplicate Entry", 
+                message: `Student ${studentId} already has a registration in progress. Status: ${existingRecord.status}` 
+            });
+        }
+
         let isPdf = req.file.mimetype === 'application/pdf';
         
         let basePrompt = `
@@ -177,7 +235,6 @@ app.post('/api/verify-eligibility', upload.single('transcript'), async (req, res
             }
         `;
 
-        // If it's a PDF, extract the text and staple it to the bottom of the prompt!
         if (isPdf) {
             console.log("📄 PDF detected! Extracting raw text locally...");
             const dataBuffer = fs.readFileSync(req.file.path);
@@ -238,12 +295,17 @@ app.put('/api/registration/assign-supervisor', async (req, res) => {
     } catch (error) { res.status(500).json({ error: "Failed." }); }
 });
 
+// =========================================================================
+// --- ROUTES ---
+// =========================================================================
 app.use('/api/supervisors', supervisorRoutes);
 app.use('/api/professors', professorRoutes);
 app.use('/api/chatbot', chatbotRoutes);
 app.use('/api/deadline', deadlineRoutes);
 app.use('/api/viva', vivaRoutes);
 app.use('/api/progress', progressRoutes);
+app.use('/api/archive', thesisArchiveRoutes); // NEW
+app.use('/api/synopsis', synopsisRoutes); // NEW
 
 app.get('/api/health', (req, res) => { res.json({ status: 'Server is running' }); });
 

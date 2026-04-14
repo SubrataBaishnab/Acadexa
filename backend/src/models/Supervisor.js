@@ -10,14 +10,18 @@ const supervisorSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  code: String, // e.g., [ASRF]
   email: {
     type: String,
     required: true,
-    unique: true,
   },
   department: {
     type: String,
     required: true,
+  },
+  university: {
+    type: String,
+    default: 'BRAC University',
   },
   
   // Professional Info
@@ -31,7 +35,19 @@ const supervisorSchema = new mongoose.Schema({
     enum: ['AI', 'Computer Vision', 'NLP', 'Security', 'Systems', 'Web Development', 'Database', 'Cloud Computing', 'Blockchain', 'IoT', 'Data Science', 'Other']
   }],
   
-  // Availability
+  // Availability & Status
+  isAcceptingStudents: {
+    type: Boolean,
+    default: true,
+  },
+  supervisesUndergrad: {
+    type: Boolean,
+    default: false,
+  },
+  supervisesPostgrad: {
+    type: Boolean,
+    default: false,
+  },
   availableSlots: {
     type: Number,
     default: 5,
@@ -61,6 +77,11 @@ const supervisorSchema = new mongoose.Schema({
     type: Boolean,
     default: true,
   },
+  isVerified: {
+    type: Boolean,
+    default: false,
+  },
+  sourceDatabase: String,
   
   // Timestamps
   createdAt: {
@@ -74,6 +95,6 @@ const supervisorSchema = new mongoose.Schema({
 });
 
 // Index for searching
-supervisorSchema.index({ 'researchAreas': 1, email: 1 });
+supervisorSchema.index({ 'researchAreas': 1, email: 1, 'isAcceptingStudents': 1 });
 
 module.exports = mongoose.model('Supervisor', supervisorSchema);
