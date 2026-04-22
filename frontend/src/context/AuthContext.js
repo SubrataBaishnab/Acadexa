@@ -4,7 +4,11 @@ import { API_URL } from '../services/apiService';
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null); // { id: string, role: 'student' | 'supervisor', name: string }
+  const [user, setUser] = useState(() => {
+    const saved = localStorage.getItem('acadexa_user');
+    return saved ? JSON.parse(saved) : null;
+  }); // { id: string, role: 'student' | 'supervisor', name: string }
+  
   const [availableUsers, setAvailableUsers] = useState({ students: [], supervisors: [] });
 
   // On mount, perform seed and fetch pseudo users
@@ -20,10 +24,6 @@ export const AuthProvider = ({ children }) => {
         
         if (data.students && data.supervisors) {
            setAvailableUsers(data);
-           // Default mock login to first student if not set
-           if (!user && data.students.length > 0) {
-              setUser({ id: data.students[0].studentId, role: 'student', name: data.students[0].name });
-           }
         }
       } catch (err) {
         console.error("Failed to initialize auth users:", err);
@@ -36,19 +36,24 @@ export const AuthProvider = ({ children }) => {
   const loginAsStudent = (studentId) => {
     const student = availableUsers.students.find(s => s.studentId === studentId);
     if (student) {
-      setUser({ id: student.studentId, role: 'student', name: student.name });
+      const userData = { id: student.studentId, role: 'student', name: student.name };
+      setUser(userData);
+      localStorage.setItem('acadexa_user', JSON.stringify(userData));
     }
   };
 
   const loginAsSupervisor = (supervisorId) => {
     const supervisor = availableUsers.supervisors.find(s => s._id === supervisorId);
     if (supervisor) {
-      setUser({ id: supervisor._id, role: 'supervisor', name: supervisor.name });
+      const userData = { id: supervisor._id, role: 'supervisor', name: supervisor.name };
+      setUser(userData);
+      localStorage.setItem('acadexa_user', JSON.stringify(userData));
     }
   };
 
   const logout = () => {
     setUser(null);
+    localStorage.removeItem('acadexa_user');
   };
 
   return (

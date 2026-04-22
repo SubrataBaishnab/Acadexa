@@ -2,11 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useProfessors } from '../hooks/useAdvisors';
 import ProfessorCard from '../components/ProfessorCard';
 import ProfessorSearchBar from '../components/ProfessorSearchBar';
+import LoginPrompt from '../components/LoginPrompt';
+import { useAuth } from '../context/AuthContext';
 
 const ProfessorsPage = () => {
   const { professors, loading, error, fetchAllProfessors } = useProfessors();
   const [filteredProfessors, setFilteredProfessors] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const { user } = useAuth();
 
   useEffect(() => {
     fetchAllProfessors();
@@ -46,6 +49,10 @@ const ProfessorsPage = () => {
   const handleSearch = (term) => {
     setSearchTerm(term);
   };
+
+  if (!user) {
+    return <LoginPrompt title="Log in to Explore Global Advisors" />;
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 py-8 px-4">

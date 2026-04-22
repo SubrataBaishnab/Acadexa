@@ -12,7 +12,10 @@ const vivaRoutes = require('./routes/vivaRoutes');
 const progressRoutes = require('./routes/progressRoutes');
 const thesisArchiveRoutes = require('./routes/thesisArchiveRoutes'); 
 const synopsisRoutes = require('./routes/synopsisRoutes'); 
-const registrationRoutes = require('./routes/registrationRoutes'); // Your newly modularized feature!
+const registrationRoutes = require('./routes/registrationRoutes'); 
+const notificationRoutes = require('./routes/notificationRoutes');
+const portfolioRoutes = require('./routes/portfolioRoutes');
+const applicationTrackerRoutes = require('./routes/applicationTrackerRoutes');
 
 const app = express();
 
@@ -37,7 +40,10 @@ app.use('/api/viva', vivaRoutes);
 app.use('/api/progress', progressRoutes);
 app.use('/api/archive', thesisArchiveRoutes); 
 app.use('/api/synopsis', synopsisRoutes);
-app.use('/api/registration', registrationRoutes); // Handles /verify-eligibility, /analyze-gap, and /initiate
+app.use('/api/registration', registrationRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/portfolio', portfolioRoutes);
+app.use('/api/applications', applicationTrackerRoutes);
 
 // --- HEALTH CHECK ---
 app.get('/api/health', (req, res) => { res.json({ status: 'Acadexa Server is running' }); });

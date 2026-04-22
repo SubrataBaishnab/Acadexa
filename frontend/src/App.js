@@ -9,6 +9,8 @@ import ProgressPage from './pages/ProgressPage';
 import SupervisorProgressPage from './pages/SupervisorProgressPage';
 import ThesisArchivePage from './pages/ThesisArchivePage'; // NEW
 import SynopsisDashboard from './pages/SynopsisDashboard'; // NEW
+import PortfolioPage from './pages/PortfolioPage'; // NEW
+import ApplicationTrackerPage from './pages/ApplicationTrackerPage'; // NEW
 import ChatbotWidget from './components/ChatbotWidget';
 import { AuthProvider } from './context/AuthContext';
 import './App.css';
@@ -25,6 +27,7 @@ function NavBar() {
     { to: '/progress',           label: 'My Progress',        hoverColor: 'hover:text-indigo-600' },
     { to: '/supervisor-progress',label: 'Student Progress',   hoverColor: 'hover:text-pink-600' },
     { to: '/thesis-archive',     label: 'Thesis Archive',     hoverColor: 'hover:text-amber-600' }, 
+    { to: '/applications',       label: 'My Applications',    hoverColor: 'hover:text-red-600' }, // NEW
     { to: '/synopsis',           label: 'Synopsis',           hoverColor: 'hover:text-cyan-600' }, // NEW
   ];
 
@@ -69,8 +72,10 @@ function App() {
           <Route path="/supervisor-progress" element={<SupervisorProgressPage />} />
           <Route path="/deadline"            element={<DeadlinePage />} />
           <Route path="/viva-prep"           element={<VivaPage />} />
+          <Route path="/applications"        element={<ApplicationTrackerPage />} /> {/* NEW */}
           <Route path="/thesis-archive"      element={<ThesisArchivePage />} /> {/* NEW */}
           <Route path="/synopsis"            element={<SynopsisDashboard />} /> {/* NEW */}
+          <Route path="/portfolio/:studentId" element={<PortfolioPage />} /> {/* NEW */}
         </Routes>
 
         <ChatbotWidget />

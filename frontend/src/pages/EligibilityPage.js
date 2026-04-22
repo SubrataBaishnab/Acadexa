@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_URL } from '../services/apiService'; // <-- Add this import
 
 const EligibilityPage = () => {
   const [file, setFile] = useState(null);
@@ -18,6 +19,39 @@ const EligibilityPage = () => {
   const [supervisors, setSupervisors] = useState([]);
   const [selectedSupervisor, setSelectedSupervisor] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  
+  // --- NEW: Dev Tool States & Function ---
+  const [isResetting, setIsResetting] = useState(false);
+
+  const handleResetData = async () => {
+    if (!studentId) return alert("Enter a Student ID to reset.");
+    
+    // Add a quick confirmation so you don't accidentally delete data
+    if (!window.confirm(`⚠️ Are you sure you want to wipe all data for student ${studentId}?`)) return;
+    
+    setIsResetting(true);
+    try {
+            // Change this:
+      // const response = await axios.delete(`http://127.0.0.1:5000/api/registration/reset/${studentId}`);
+
+      // To this:
+      const response = await axios.delete(`${API_URL}/registration/reset/${studentId}`);
+      alert(response.data.message);
+      
+      // Wipe the frontend state clean so you can start over instantly
+      setDashboardData(null);
+      setResult(null);
+      setFile(null);
+      setThesisTitle('');
+      setTeamMembers('');
+      setSelectedSupervisor('');
+    } catch (error) {
+      alert("Failed to reset data. Make sure the backend route is running.");
+    } finally {
+      setIsResetting(false);
+    }
+  };
 
   useEffect(() => {
     if (isDarkMode) document.documentElement.classList.add('dark');
@@ -49,7 +83,11 @@ const EligibilityPage = () => {
     if (!studentId) return alert("Enter a Student ID to check your status.");
     setIsCheckingStatus(true);
     try {
-      const response = await axios.get(`http://127.0.0.1:5000/api/registration/status/${studentId}`);
+      // Change this:
+      // const response = await axios.get(`http://127.0.0.1:5000/api/registration/status/${studentId}`);
+
+// To this:
+      const response = await axios.get(`${API_URL}/registration/status/${studentId}`);
       setDashboardData(response.data.data);
       setResult(null); // Clear any upload results if they exist
     } catch (error) {
@@ -77,8 +115,11 @@ const EligibilityPage = () => {
     formData.append('student_id', studentId);
 
     try {
-      const response = await axios.post('http://127.0.0.1:5000/api/verify-eligibility', formData);
-      setResult(response.data);
+      // Change this:
+// const response = await axios.post('http://127.0.0.1:5000/api/verify-eligibility', formData);
+
+// To this:
+    const response = await axios.post(`${API_URL}/registration/verify-eligibility`, formData);
     } catch (error) {
       if (error.response && error.response.status === 400) {
         alert(error.response.data.message); // Alerts the duplicate prevention message
@@ -94,17 +135,20 @@ const EligibilityPage = () => {
     e.preventDefault();
     if (!thesisTitle || !selectedSupervisor) return alert("Fill all required fields.");
     setIsSubmitting(true);
+    
     try {
       const memberArray = teamMembers.split(',').map(id => id.trim()).filter(id => id);
-      await axios.put('http://127.0.0.1:5000/api/registration/team-setup', {
-        student_id: studentId, thesis_title: thesisTitle, group_members: memberArray
+      
+      const response = await axios.post(`${API_URL}/registration/initiate`, {
+        student_id: studentId,
+        synopsis_id: dashboardData._id, 
+        group_members: memberArray
       });
-      const response = await axios.put('http://127.0.0.1:5000/api/registration/assign-supervisor', {
-        student_id: studentId, supervisor_id: selectedSupervisor
-      });
-      setDashboardData(response.data.data); // Switch to dashboard view on success
-      setResult(null); 
-    } catch (error) {
+      
+      setDashboardData(response.data.data); 
+      setResult(null);
+      
+    } catch (error) { // <-- This was the missing catch block!
       alert("Failed to route request.");
     } finally {
       setIsSubmitting(false);
@@ -142,6 +186,16 @@ const EligibilityPage = () => {
                 className="bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white px-4 py-2 rounded-lg font-bold hover:bg-gray-300 transition-colors whitespace-nowrap"
               >
                 {isCheckingStatus ? '...' : 'Check Status'}
+              </button>
+              {/* --- NEW: DEV TOOL RESET BUTTON --- */}
+              <button
+                type="button"
+                onClick={handleResetData}
+                disabled={isResetting || !studentId}
+                title="Dev Tool: Wipe data for this ID"
+                className="bg-red-100 text-red-600 px-4 py-2 rounded-lg font-bold hover:bg-red-200 disabled:opacity-50 transition-colors whitespace-nowrap"
+              >
+                {isResetting ? '🧹...' : '🧹 Reset'}
               </button>
             </div>
             
