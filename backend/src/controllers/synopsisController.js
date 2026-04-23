@@ -2,6 +2,8 @@ const mongoose = require('mongoose');
 const Synopsis = require('../models/Synopsis');
 const Student = require('../models/Student');
 const Supervisor = require('../models/Supervisor');
+const notificationController = require('./notificationController');
+const { sendEmail } = require('../utils/mailService');
 
 // --- USER & SEED ENDPOINTS ---
 
@@ -11,7 +13,8 @@ exports.seedStudents = async (req, res) => {
       { studentId: '23101397', name: 'Nafiz Imtius' },
       { studentId: '23201066', name: 'Tasnuva Karim Samiha' },
       { studentId: '23201002', name: 'Tasnoor Jahan Dipi' },
-      { studentId: '22101642', name: 'Subrata Baishnab' }
+      { studentId: '22101642', name: 'Subrata Baishnab' },
+      { studentId: '22101640', name: 'Subrata Barbar', email: 'sbaishnab137@gmail.com' }
     ];
 
     // Clear existing and insert to avoid duplicates if run multiple times
@@ -75,6 +78,16 @@ exports.submitIdea = async (req, res) => {
     });
     await synopsis.save();
     
+    // Notify Supervisor
+    const student = await Student.findOne({ studentId });
+    await notificationController.createInternalNotification({
+      recipientId: supervisorId,
+      senderId: studentId,
+      type: 'Synopsis',
+      message: `New research idea submitted by ${student ? student.name : studentId}`,
+      link: '/supervisor-dashboard'
+    });
+
     res.status(201).json({ message: 'Idea submitted successfully', data: synopsis });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -99,6 +112,16 @@ exports.submitFullSynopsis = async (req, res) => {
     synopsis.updatedAt = Date.now();
     await synopsis.save();
 
+    // Notify Supervisor
+    const student = await Student.findOne({ studentId: synopsis.studentId });
+    await notificationController.createInternalNotification({
+      recipientId: synopsis.supervisorId,
+      senderId: synopsis.studentId,
+      type: 'Synopsis',
+      message: `Full synopsis submitted by ${student ? student.name : synopsis.studentId}`,
+      link: '/supervisor-dashboard'
+    });
+
     res.json({ message: 'Full synopsis submitted successfully', data: synopsis });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -122,6 +145,29 @@ exports.updateStatus = async (req, res) => {
     
     if (!synopsis) return res.status(404).json({ error: 'Synopsis not found' });
     
+    // Notify Student
+    const supervisor = await Supervisor.findById(synopsis.supervisorId);
+    const supervisorName = supervisor ? `${supervisor.firstName} ${supervisor.lastName}` : 'Supervisor';
+    
+    await notificationController.createInternalNotification({
+      recipientId: synopsis.studentId,
+      senderId: synopsis.supervisorId,
+      type: 'Synopsis',
+      message: `Your synopsis has been ${status} by ${supervisorName}. Feedback: ${feedback || 'None'}`,
+      link: '/student-dashboard'
+    });
+
+    // Send Email
+    const student = await Student.findOne({ studentId: synopsis.studentId });
+    if (student && student.email) {
+      await sendEmail(
+        student.email,
+        `Synopsis ${status} - Acadexa`,
+        `Hi ${student.name},\n\nYour thesis synopsis has been ${status} by your supervisor ${supervisorName}.\n\nFeedback: ${feedback || 'None'}\n\nCheck your dashboard for details.`,
+        `<p>Hi ${student.name},</p><p>Your thesis synopsis has been <strong>${status}</strong> by your supervisor <strong>${supervisorName}</strong>.</p><p><strong>Feedback:</strong> ${feedback || 'None'}</p><p><a href="${process.env.FRONTEND_URL}/student-dashboard">Click here to view your dashboard</a></p>`
+      );
+    }
+
     res.json({ message: `Synopsis updated to ${status}`, data: synopsis });
   } catch (error) {
     res.status(500).json({ error: error.message });

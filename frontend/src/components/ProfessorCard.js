@@ -1,6 +1,35 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { API_URL } from '../services/apiService';
 
 const ProfessorCard = ({ professor, onContact }) => {
+  const { user } = useAuth();
+  const [isBookmarked, setIsBookmarked] = useState(false);
+
+  const handleBookmark = async () => {
+    if (!user || user.role !== 'student') {
+      alert('Please log in as a student to bookmark professors.');
+      return;
+    }
+    
+    try {
+      const res = await fetch(`${API_URL}/applications`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId: user.id, professorId: professor._id }),
+      });
+      
+      const data = await res.json();
+      if (res.ok) {
+        setIsBookmarked(true);
+      } else {
+        alert(data.error || 'Failed to bookmark professor.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('An error occurred.');
+    }
+  };
   return (
     <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
       <div className="flex justify-between items-start mb-4">
@@ -61,16 +90,31 @@ const ProfessorCard = ({ professor, onContact }) => {
         </div>
       )}
 
-      <button 
-        onClick={() => {
-          if (professor.universityProfileUrl) {
-            window.open(professor.universityProfileUrl, '_blank');
-          }
-        }}
-        className="w-full border border-purple-600 text-purple-600 hover:bg-purple-50 font-semibold py-2 rounded-lg transition-colors"
-      >
-        View Profile
-      </button>
+      <div className="flex gap-2">
+        <button 
+          onClick={() => {
+            if (professor.universityProfileUrl) {
+              window.open(professor.universityProfileUrl, '_blank');
+            }
+          }}
+          className="flex-1 border border-purple-600 text-purple-600 hover:bg-purple-50 font-semibold py-2 rounded-lg transition-colors"
+        >
+          View Profile
+        </button>
+        {user?.role === 'student' && (
+          <button 
+            onClick={handleBookmark}
+            disabled={isBookmarked}
+            className={`flex-1 font-semibold py-2 rounded-lg transition-colors ${
+              isBookmarked 
+                ? 'bg-green-100 text-green-700 border border-green-200' 
+                : 'bg-purple-600 text-white hover:bg-purple-700'
+            }`}
+          >
+            {isBookmarked ? '✓ Tracked' : 'Bookmark'}
+          </button>
+        )}
+      </div>
     </div>
   );
 };

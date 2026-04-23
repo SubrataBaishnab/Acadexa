@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_URL } from '../services/apiService';
 
 const EligibilityPage = () => {
   const [file, setFile] = useState(null);
@@ -8,16 +9,42 @@ const EligibilityPage = () => {
   const [result, setResult] = useState(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
   
-  // New Dashboard States
+  // Dashboard States
   const [dashboardData, setDashboardData] = useState(null);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
 
   // Module 2 States
+  const [conflictError, setConflictError] = useState('');
   const [thesisTitle, setThesisTitle] = useState('');
   const [teamMembers, setTeamMembers] = useState('');
   const [supervisors, setSupervisors] = useState([]);
   const [selectedSupervisor, setSelectedSupervisor] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Dev Tool States & Function
+  const [isResetting, setIsResetting] = useState(false);
+
+  const handleResetData = async () => {
+    if (!studentId) return alert("Enter a Student ID to reset.");
+    if (!window.confirm(`⚠️ Are you sure you want to wipe all data for student ${studentId}?`)) return;
+    
+    setIsResetting(true);
+    try {
+      const response = await axios.delete(`${API_URL}/registration/reset/${studentId}`);
+      alert(response.data.message);
+      
+      setDashboardData(null);
+      setResult(null);
+      setFile(null);
+      setThesisTitle('');
+      setTeamMembers('');
+      setSelectedSupervisor('');
+    } catch (error) {
+      alert("Failed to reset data. Make sure the backend route is running.");
+    } finally {
+      setIsResetting(false);
+    }
+  };
 
   useEffect(() => {
     if (isDarkMode) document.documentElement.classList.add('dark');
@@ -28,15 +55,23 @@ const EligibilityPage = () => {
     if (result && result.status === 'Approved') {
       const fetchSupervisors = async () => {
         try {
-          const response = await axios.get('http://127.0.0.1:5000/api/supervisors');
-          let fetchedData = response.data.supervisors || response.data;
-          if (Array.isArray(fetchedData) && fetchedData.length > 0) setSupervisors(fetchedData);
-          else throw new Error("Not an array");
+          const response = await axios.get(`${API_URL}/supervisors`);
+          let fetchedData = response.data.data; 
+          
+          if (Array.isArray(fetchedData) && fetchedData.length > 0) {
+             const mappedProfs = fetchedData.map(prof => ({
+                 supervisor_id: prof._id,
+                 name: `${prof.firstName} ${prof.lastName}`
+             }));
+             setSupervisors(mappedProfs);
+          } else {
+              throw new Error("No real supervisors found");
+          }
         } catch (error) {
           setSupervisors([
-            { supervisor_id: 'prof_001', name: 'Dr. Amitabha Chakrabarty' },
-            { supervisor_id: 'prof_002', name: 'Dr. Md. Khalilur Rhaman' },
-            { supervisor_id: 'prof_003', name: 'Dr. Jia Uddin' }
+            { supervisor_id: '507f1f77bcf86cd799439011', name: 'Dr. Amitabha Chakrabarty' },
+            { supervisor_id: '507f1f77bcf86cd799439012', name: 'Dr. Md. Khalilur Rhaman' },
+            { supervisor_id: '507f1f77bcf86cd799439013', name: 'Dr. Jia Uddin' }
           ]);
         }
       };
@@ -44,14 +79,13 @@ const EligibilityPage = () => {
     }
   }, [result]);
 
-  // --- NEW: Check existing status ---
   const handleCheckStatus = async () => {
     if (!studentId) return alert("Enter a Student ID to check your status.");
     setIsCheckingStatus(true);
     try {
-      const response = await axios.get(`http://127.0.0.1:5000/api/registration/status/${studentId}`);
+      const response = await axios.get(`${API_URL}/registration/status/${studentId}`);
       setDashboardData(response.data.data);
-      setResult(null); // Clear any upload results if they exist
+      setResult(null); 
     } catch (error) {
       if (error.response && error.response.status === 404) {
         alert("No existing registration found. Please upload your transcript.");
@@ -77,11 +111,11 @@ const EligibilityPage = () => {
     formData.append('student_id', studentId);
 
     try {
-      const response = await axios.post('http://127.0.0.1:5000/api/verify-eligibility', formData);
-      setResult(response.data);
+      const response = await axios.post(`${API_URL}/registration/verify-eligibility`, formData);
+      setResult(response.data); 
     } catch (error) {
       if (error.response && error.response.status === 400) {
-        alert(error.response.data.message); // Alerts the duplicate prevention message
+        alert(error.response.data.message); 
       } else {
         alert("Upload failed. Make sure backend is running.");
       }
@@ -94,18 +128,28 @@ const EligibilityPage = () => {
     e.preventDefault();
     if (!thesisTitle || !selectedSupervisor) return alert("Fill all required fields.");
     setIsSubmitting(true);
+    setConflictError(''); 
+    
     try {
       const memberArray = teamMembers.split(',').map(id => id.trim()).filter(id => id);
-      await axios.put('http://127.0.0.1:5000/api/registration/team-setup', {
-        student_id: studentId, thesis_title: thesisTitle, group_members: memberArray
+      
+      const response = await axios.post(`${API_URL}/registration/initiate`, {
+        student_id: studentId,
+        synopsis_id: dashboardData?._id, 
+        thesis_title: thesisTitle,
+        supervisor_id: selectedSupervisor,
+        group_members: memberArray
       });
-      const response = await axios.put('http://127.0.0.1:5000/api/registration/assign-supervisor', {
-        student_id: studentId, supervisor_id: selectedSupervisor
-      });
-      setDashboardData(response.data.data); // Switch to dashboard view on success
-      setResult(null); 
-    } catch (error) {
-      alert("Failed to route request.");
+      
+      setDashboardData(response.data.data); 
+      setResult(null);
+      
+    } catch (error) { 
+      if (error.response && error.response.status === 409) {
+          setConflictError(error.response.data.message); 
+      } else {
+          setConflictError(error.response?.data?.error || "Failed to route request.");
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -143,6 +187,15 @@ const EligibilityPage = () => {
               >
                 {isCheckingStatus ? '...' : 'Check Status'}
               </button>
+              <button
+                type="button"
+                onClick={handleResetData}
+                disabled={isResetting || !studentId}
+                title="Dev Tool: Wipe data for this ID"
+                className="bg-red-100 text-red-600 px-4 py-2 rounded-lg font-bold hover:bg-red-200 disabled:opacity-50 transition-colors whitespace-nowrap"
+              >
+                {isResetting ? '🧹...' : '🧹 Reset'}
+              </button>
             </div>
             
             <form onSubmit={handleUpload} className="space-y-6 border-t border-gray-200 dark:border-gray-700 pt-6">
@@ -170,7 +223,7 @@ const EligibilityPage = () => {
         </div>
       )}
 
-      {/* --- NEW: SKELETON LOADER (Shows while AI is thinking) --- */}
+      {/* --- SKELETON LOADER --- */}
       {isScanning && (
         <div className="mt-8 max-w-md w-full rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-darkCard animate-pulse">
           <div className="h-6 bg-gray-300 dark:bg-gray-700 rounded w-1/3 mb-4"></div>
@@ -183,7 +236,7 @@ const EligibilityPage = () => {
         </div>
       )}
 
-      {/* --- MODULE 2 REGISTRATION FORM --- */}
+      {/* --- MODULE 2 REGISTRATION FORM (APPROVED) --- */}
       {!isScanning && result && result.status === 'Approved' && !dashboardData && (
         <div className="mt-8 max-w-md w-full bg-white dark:bg-darkCard rounded-2xl p-6 shadow-xl border border-gray-100 dark:border-gray-800 animate-fade-in">
           <div className="bg-green-50 dark:bg-green-900/20 border border-green-400 p-4 rounded-lg mb-6">
@@ -192,6 +245,21 @@ const EligibilityPage = () => {
           </div>
 
           <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4 border-b pb-2 dark:border-gray-700">Step 2: Team Formation</h3>
+          
+          {conflictError && (
+            <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded-r-lg shadow-sm animate-fade-in">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <span className="text-red-500 text-xl">🚨</span>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-bold text-red-800">Registration Blocked</h3>
+                  <p className="text-sm text-red-700 mt-1">{conflictError}</p>
+                </div>
+              </div>
+            </div>
+          )}
+          
           <form onSubmit={handleModule2Submit} className="space-y-5">
             <input type="text" required value={thesisTitle} onChange={(e) => setThesisTitle(e.target.value)} placeholder="Thesis Title" className="w-full px-3 py-2 rounded-lg border dark:bg-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-secondary"/>
             <input type="text" value={teamMembers} onChange={(e) => setTeamMembers(e.target.value)} placeholder="Co-Members IDs (Comma separated)" className="w-full px-3 py-2 rounded-lg border dark:bg-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-secondary"/>
@@ -206,7 +274,17 @@ const EligibilityPage = () => {
         </div>
       )}
 
-      {/* --- NEW: STUDENT DASHBOARD VIEW --- */}
+      {/* --- REJECTED TRANSCRIPT UI (DENIED) --- */}
+      {!isScanning && result && result.status !== 'Approved' && !dashboardData && (
+        <div className="mt-8 max-w-md w-full bg-white dark:bg-darkCard rounded-2xl p-6 shadow-xl border border-red-100 dark:border-red-900 animate-fade-in">
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-400 p-4 rounded-lg">
+            <h3 className="text-lg font-bold text-red-700 dark:text-red-400">❌ {result.status} (Credits: {result.credits})</h3>
+            <p className="text-sm text-red-600 dark:text-red-300 mt-1">{result.message}</p>
+          </div>
+        </div>
+      )}
+
+      {/* --- STUDENT DASHBOARD VIEW --- */}
       {dashboardData && (
         <div className="mt-8 max-w-md w-full bg-white dark:bg-darkCard rounded-2xl p-8 shadow-xl border border-gray-100 dark:border-gray-800 animate-fade-in text-center">
           <div className="w-20 h-20 mx-auto bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mb-4">

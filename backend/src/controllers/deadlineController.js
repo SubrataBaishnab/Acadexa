@@ -1,4 +1,7 @@
 const Deadline = require('../models/Deadline');
+const Student = require('../models/Student');
+const notificationController = require('./notificationController');
+const { sendEmail } = require('../utils/mailService');
 
 const calculatePressure = (tasks, deadlineDate, progressPercent) => {
   const now = new Date();
@@ -48,6 +51,26 @@ const createDeadline = async (req, res) => {
     });
 
     await deadline.save();
+
+    // Notify Student
+    await notificationController.createInternalNotification({
+      recipientId: studentId,
+      type: 'Deadline',
+      message: `A new progress deadline has been set for "${thesisTitle}": ${new Date(deadlineDate).toLocaleDateString()}`,
+      link: '/deadline'
+    });
+
+    // Send Email
+    const student = await Student.findOne({ studentId });
+    if (student && student.email) {
+      await sendEmail(
+        student.email,
+        'New Deadline Set - Acadexa',
+        `Hi,\n\nA new progress deadline has been set for your thesis "${thesisTitle}": ${new Date(deadlineDate).toLocaleDateString()}.\n\nPressure Level: ${pressureLevel}`,
+        `<p>Hi,</p><p>A new progress deadline has been set for your thesis <strong>"${thesisTitle}"</strong>: <strong>${new Date(deadlineDate).toLocaleDateString()}</strong>.</p><p><strong>Pressure Level:</strong> ${pressureLevel}</p>`
+      );
+    }
+
     res.status(201).json({ message: 'Deadline created successfully', deadline });
   } catch (err) {
     res.status(500).json({ error: err.message });

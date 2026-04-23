@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
+import AdminWorkloadPage from './pages/AdminWorkloadPage';
 import SupervisorsPage from './pages/SupervisorsPage';
 import ProfessorsPage from './pages/ProfessorsPage';
 import EligibilityPage from './pages/EligibilityPage';
@@ -7,14 +8,18 @@ import DeadlinePage from './pages/DeadlinePage';
 import VivaPage from './pages/VivaPage';
 import ProgressPage from './pages/ProgressPage';
 import SupervisorProgressPage from './pages/SupervisorProgressPage';
-import ThesisArchivePage from './pages/ThesisArchivePage'; // NEW
-import SynopsisDashboard from './pages/SynopsisDashboard'; // NEW
+import ThesisArchivePage from './pages/ThesisArchivePage'; 
+import SynopsisDashboard from './pages/SynopsisDashboard'; 
+import PortfolioPage from './pages/PortfolioPage'; 
+import ApplicationTrackerPage from './pages/ApplicationTrackerPage'; 
 import ChatbotWidget from './components/ChatbotWidget';
 import { AuthProvider } from './context/AuthContext';
+import ResearchAlignmentPage from './pages/ResearchAlignmentPage'; 
 import './App.css';
 
 function NavBar() {
   const location = useLocation();
+  const [isOpen, setIsOpen] = useState(false);
 
   const navLinks = [
     { to: '/',                   label: 'Verify Eligibility', hoverColor: 'hover:text-green-600' },
@@ -25,31 +30,89 @@ function NavBar() {
     { to: '/progress',           label: 'My Progress',        hoverColor: 'hover:text-indigo-600' },
     { to: '/supervisor-progress',label: 'Student Progress',   hoverColor: 'hover:text-pink-600' },
     { to: '/thesis-archive',     label: 'Thesis Archive',     hoverColor: 'hover:text-amber-600' }, 
-    { to: '/synopsis',           label: 'Synopsis',           hoverColor: 'hover:text-cyan-600' }, // NEW
+    { to: '/applications',       label: 'My Applications',    hoverColor: 'hover:text-red-600' }, 
+    { to: '/synopsis',           label: 'Synopsis',           hoverColor: 'hover:text-cyan-600' }, 
+    { to: '/research-alignment', label: 'Research Alignment', hoverColor: 'hover:text-cyan-600' },
+    { to: '/admin/workload',     label: 'Admin Dashboard',    hoverColor: 'hover:text-blue-600' }
   ];
 
   return (
-    <nav className="bg-white shadow-md sticky top-0 z-30">
+    <nav className="bg-white shadow-md sticky top-0 z-30 relative">
       <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-        <Link to="/" className="text-2xl font-bold text-blue-600">
+        
+        {/* Logo */}
+        <Link to="/" className="text-2xl font-bold text-blue-600 mr-4">
           Acadexa
         </Link>
-        <div className="flex gap-6 flex-wrap">
-          {navLinks.map(({ to, label, hoverColor }) => (
-            <Link
-              key={to}
-              to={to}
-              className={`text-sm font-semibold transition-colors ${
-                location.pathname === to
-                  ? 'text-blue-600 border-b-2 border-blue-600 pb-0.5'
-                  : `text-gray-700 ${hoverColor}`
-              }`}
-            >
-              {label}
-            </Link>
-          ))}
+
+        {/* --- DESKTOP / TABLET MENU --- */}
+        {/* Hidden on mobile, flex on tablet and up */}
+        <div className="hidden md:flex gap-4 lg:gap-6 flex-wrap items-center flex-1">
+          {navLinks.map(({ to, label, hoverColor }, index) => {
+            const isFirstFour = index < 4;
+            return (
+              <Link
+                key={to}
+                to={to}
+                // If it's the first 4, show on tablet & desktop ('block'). 
+                // If it's 5+, hide on tablet and only show on desktop ('hidden lg:block').
+                className={`text-sm font-semibold transition-colors ${
+                  location.pathname === to
+                    ? 'text-blue-600 border-b-2 border-blue-600 pb-0.5'
+                    : `text-gray-700 ${hoverColor}`
+                } ${isFirstFour ? 'block' : 'hidden lg:block'}`}
+              >
+                {label}
+              </Link>
+            );
+          })}
+        </div>
+
+        {/* --- HAMBURGER BUTTON --- */}
+        {/* Visible on Mobile and Tablet, Hidden on Desktop (lg:hidden) */}
+        <div className="lg:hidden ml-auto">
+          <button
+            onClick={() => setIsOpen(!isOpen)}
+            className="text-gray-600 hover:text-blue-600 focus:outline-none p-2"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              {isOpen ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+              )}
+            </svg>
+          </button>
         </div>
       </div>
+
+      {/* --- MOBILE / TABLET DROPDOWN MENU --- */}
+      {/* Only renders if the menu is open, and strictly hides on desktop (lg:hidden) */}
+      {isOpen && (
+        <div className="lg:hidden bg-white border-t border-gray-100 shadow-lg animate-fade-in absolute w-full left-0 top-full pb-4">
+          <div className="px-4 pt-2 space-y-1 max-h-[70vh] overflow-y-auto">
+            {navLinks.map(({ to, label, hoverColor }, index) => {
+              const isFirstFour = index < 4;
+              return (
+                <Link
+                  key={to}
+                  to={to}
+                  onClick={() => setIsOpen(false)} 
+                  // If it's the first 4, hide it on tablet dropdown (because it's already in the top bar) but show on mobile ('block md:hidden').
+                  // If it's 5+, always show it in the dropdown ('block').
+                  className={`px-3 py-3 rounded-md text-base font-semibold transition-colors ${
+                    location.pathname === to
+                      ? 'text-blue-600 bg-blue-50'
+                      : `text-gray-700 ${hoverColor} hover:bg-gray-50`
+                  } ${isFirstFour ? 'block md:hidden' : 'block'}`}
+                >
+                  {label}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </nav>
   );
 }
@@ -61,19 +124,23 @@ function App() {
         <div className="App">
           <NavBar />
 
-        <Routes>
-          <Route path="/"                    element={<EligibilityPage />} />
-          <Route path="/supervisors"         element={<SupervisorsPage />} />
-          <Route path="/phd-professors"      element={<ProfessorsPage />} />
-          <Route path="/progress"            element={<ProgressPage />} />
-          <Route path="/supervisor-progress" element={<SupervisorProgressPage />} />
-          <Route path="/deadline"            element={<DeadlinePage />} />
-          <Route path="/viva-prep"           element={<VivaPage />} />
-          <Route path="/thesis-archive"      element={<ThesisArchivePage />} /> {/* NEW */}
-          <Route path="/synopsis"            element={<SynopsisDashboard />} /> {/* NEW */}
-        </Routes>
+          <Routes>
+            <Route path="/"                    element={<EligibilityPage />} />
+            <Route path="/supervisors"         element={<SupervisorsPage />} />
+            <Route path="/phd-professors"      element={<ProfessorsPage />} />
+            <Route path="/progress"            element={<ProgressPage />} />
+            <Route path="/supervisor-progress" element={<SupervisorProgressPage />} />
+            <Route path="/deadline"            element={<DeadlinePage />} />
+            <Route path="/viva-prep"           element={<VivaPage />} />
+            <Route path="/applications"        element={<ApplicationTrackerPage />} /> 
+            <Route path="/thesis-archive"      element={<ThesisArchivePage />} /> 
+            <Route path="/synopsis"            element={<SynopsisDashboard />} /> 
+            <Route path="/portfolio/:studentId" element={<PortfolioPage />} /> 
+            <Route path="/admin/workload"      element={<AdminWorkloadPage />} />
+            <Route path="/research-alignment"  element={<ResearchAlignmentPage />} />
+          </Routes>
 
-        <ChatbotWidget />
+          <ChatbotWidget />
         </div>
       </Router>
     </AuthProvider>
