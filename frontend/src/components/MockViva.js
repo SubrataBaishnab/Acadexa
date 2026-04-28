@@ -25,7 +25,7 @@ const MockViva = ({ questions = [] }) => {
 
   const currentQuestion = questions[currentIndex];
   const isLastQuestion = currentIndex === questions.length - 1;
-  const isComplete = sessionStarted && isLastQuestion && result;
+  const isComplete = sessionStarted && isLastQuestion && result && !loading;
 
   const handleStart = () => {
     setSessionStarted(true);
@@ -42,6 +42,7 @@ const MockViva = ({ questions = [] }) => {
       const res = await vivaService.mockVivaSession({
         question: currentQuestion.question,
         expectedAnswer: currentQuestion.answer,
+        questionId: currentQuestion._id,
         studentAnswer: answer,
         tag: currentQuestion.tag,
       });
@@ -60,9 +61,11 @@ const MockViva = ({ questions = [] }) => {
   };
 
   const handleNext = () => {
-    setCurrentIndex(currentIndex + 1);
-    setAnswer('');
-    setResult(null);
+    if (currentIndex < questions.length - 1) {
+      setCurrentIndex(currentIndex + 1);
+      setAnswer('');
+      setResult(null);
+    }
   };
 
   const handleRestart = () => {
@@ -92,10 +95,10 @@ const MockViva = ({ questions = [] }) => {
         <div className="text-5xl mb-4">🎓</div>
         <h3 className="text-xl font-semibold text-gray-800 mb-2">Mock Viva Session</h3>
         <p className="text-sm text-gray-500 mb-2">
-          {questions.length} question{questions.length !== 1 ? 's' : ''} ready
+          {questions.length} question{questions.length !== 1 ? 's' : ''} ready. Answer each one and get feedback.
         </p>
         <p className="text-xs text-gray-400 mb-6">
-          Claude AI will evaluate each of your answers and give you a score and detailed feedback
+          Claude AI will evaluate each of your answers and give you a score and detailed feedback.
         </p>
         <button
           onClick={handleStart}
@@ -107,7 +110,6 @@ const MockViva = ({ questions = [] }) => {
     );
   }
 
-  // Session complete summary
   if (isComplete) {
     return (
       <div className="bg-white rounded-2xl border border-gray-200 p-6">
@@ -117,14 +119,12 @@ const MockViva = ({ questions = [] }) => {
           <p className="text-sm text-gray-400 mt-1">Here's how you performed</p>
         </div>
 
-        {/* Average score */}
         <div className="bg-gray-50 rounded-xl p-5 mb-5 text-center border border-gray-100">
           <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Average Score</p>
           <p className={`text-5xl font-bold ${scoreColor(avgScore)}`}>{avgScore}</p>
           <p className="text-xs text-gray-400 mt-1">out of 100</p>
         </div>
 
-        {/* Per-question results */}
         <div className="space-y-3 mb-5">
           {sessionResults.map((r, i) => (
             <div key={i} className="flex items-center justify-between bg-gray-50 rounded-xl p-3 border border-gray-100">
@@ -150,7 +150,7 @@ const MockViva = ({ questions = [] }) => {
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 p-6">
+    <div className="bg-white rounded-2xl border border-gray-200 p-5">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
@@ -162,7 +162,7 @@ const MockViva = ({ questions = [] }) => {
         </span>
       </div>
 
-      {/* Progress bar */}
+      {/* Progress */}
       <div className="w-full bg-gray-100 rounded-full h-1.5 mb-5">
         <div
           className="h-1.5 rounded-full bg-blue-500 transition-all duration-500"
@@ -191,7 +191,7 @@ const MockViva = ({ questions = [] }) => {
             onChange={(e) => setAnswer(e.target.value)}
             placeholder="Type your answer here..."
             rows={5}
-            className="w-full text-sm border border-gray-200 rounded-xl px-4 py-3 mb-3 focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+            className="w-full text-sm border border-gray-200 rounded-xl px-4 py-3 mb-3 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent resize-none"
           />
           <button
             onClick={handleSubmit}
@@ -206,7 +206,6 @@ const MockViva = ({ questions = [] }) => {
       {/* AI Feedback */}
       {result && (
         <div className="mt-2 space-y-3">
-          {/* Score + Grade */}
           <div className="flex items-center gap-3">
             <div className="bg-gray-50 rounded-xl px-5 py-3 text-center border border-gray-100 flex-shrink-0">
               <p className={`text-3xl font-bold ${scoreColor(result.score)}`}>{result.score}</p>
@@ -220,7 +219,6 @@ const MockViva = ({ questions = [] }) => {
             </div>
           </div>
 
-          {/* Strengths & Improvements */}
           {result.strengths && (
             <div className="bg-green-50 rounded-xl p-3 border border-green-100">
               <p className="text-xs font-semibold text-green-600 mb-1">✓ Strength</p>
@@ -234,22 +232,23 @@ const MockViva = ({ questions = [] }) => {
             </div>
           )}
 
-          {/* Next / Finish */}
-          {!isLastQuestion ? (
-            <button
-              onClick={handleNext}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-xl transition-colors"
-            >
-              Next Question →
-            </button>
-          ) : (
-            <button
-              onClick={() => setResult(result)}
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-3 rounded-xl transition-colors"
-            >
-              View Results 🎉
-            </button>
-          )}
+          <div className="flex gap-2 pt-2">
+            {!isLastQuestion ? (
+              <button
+                onClick={handleNext}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-xl transition-colors"
+              >
+                Next Question →
+              </button>
+            ) : (
+              <button
+                onClick={() => setResult(result)}
+                className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-3 rounded-xl transition-colors"
+              >
+                View Results 🎉
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

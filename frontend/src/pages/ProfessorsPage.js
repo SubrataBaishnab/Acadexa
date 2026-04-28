@@ -2,14 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { useProfessors } from '../hooks/useAdvisors';
 import ProfessorCard from '../components/ProfessorCard';
 import ProfessorSearchBar from '../components/ProfessorSearchBar';
+<<<<<<< HEAD
 import LoginPrompt from '../components/LoginPrompt';
 import { useAuth } from '../context/AuthContext';
+=======
+>>>>>>> origin/allmodules/Tasnuva
 
 const ProfessorsPage = () => {
   const { professors, loading, error, fetchAllProfessors } = useProfessors();
   const [filteredProfessors, setFilteredProfessors] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+<<<<<<< HEAD
   const { user } = useAuth();
+=======
+>>>>>>> origin/allmodules/Tasnuva
 
   useEffect(() => {
     fetchAllProfessors();
@@ -50,10 +56,13 @@ const ProfessorsPage = () => {
     setSearchTerm(term);
   };
 
+<<<<<<< HEAD
   if (!user) {
     return <LoginPrompt title="Log in to Explore Global Advisors" />;
   }
 
+=======
+>>>>>>> origin/allmodules/Tasnuva
   return (
     <div className="min-h-screen bg-gray-100 py-8 px-4">
       <div className="max-w-7xl mx-auto">

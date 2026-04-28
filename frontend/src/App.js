@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
-import AdminWorkloadPage from './pages/AdminWorkloadPage';
+import { AuthProvider } from './context/AuthContext';
+
+// Pages & Components
+import EligibilityPage from './pages/EligibilityPage';
 import SupervisorsPage from './pages/SupervisorsPage';
 import ProfessorsPage from './pages/ProfessorsPage';
-import EligibilityPage from './pages/EligibilityPage';
 import DeadlinePage from './pages/DeadlinePage';
 import VivaPage from './pages/VivaPage';
 import ProgressPage from './pages/ProgressPage';
@@ -12,9 +14,13 @@ import ThesisArchivePage from './pages/ThesisArchivePage';
 import SynopsisDashboard from './pages/SynopsisDashboard'; 
 import PortfolioPage from './pages/PortfolioPage'; 
 import ApplicationTrackerPage from './pages/ApplicationTrackerPage'; 
-import ChatbotWidget from './components/ChatbotWidget';
-import { AuthProvider } from './context/AuthContext';
 import ResearchAlignmentPage from './pages/ResearchAlignmentPage'; 
+import AdminWorkloadPage from './pages/AdminWorkloadPage';
+import AdminDashboard from './pages/AdminDashboard';
+import StudentDashboard from './pages/StudentDashboard';
+import SupervisorReviewPage from './pages/SupervisorReviewPage';
+import ProfessorReviewPage from './pages/ProfessorReviewPage';
+import ChatbotWidget from './components/ChatbotWidget';
 import './App.css';
 
 function NavBar() {
@@ -33,7 +39,9 @@ function NavBar() {
     { to: '/applications',       label: 'My Applications',    hoverColor: 'hover:text-red-600' }, 
     { to: '/synopsis',           label: 'Synopsis',           hoverColor: 'hover:text-cyan-600' }, 
     { to: '/research-alignment', label: 'Research Alignment', hoverColor: 'hover:text-cyan-600' },
-    { to: '/admin/workload',     label: 'Admin Dashboard',    hoverColor: 'hover:text-blue-600' }
+    { to: '/dashboard',          label: 'My Dashboard',       hoverColor: 'hover:text-teal-500' },
+    { to: '/admin',              label: 'Admin',              hoverColor: 'hover:text-gray-600' },
+    { to: '/admin/workload',     label: 'Admin Workload',     hoverColor: 'hover:text-blue-600' }
   ];
 
   return (
@@ -46,7 +54,6 @@ function NavBar() {
         </Link>
 
         {/* --- DESKTOP / TABLET MENU --- */}
-        {/* Hidden on mobile, flex on tablet and up */}
         <div className="hidden md:flex gap-4 lg:gap-6 flex-wrap items-center flex-1">
           {navLinks.map(({ to, label, hoverColor }, index) => {
             const isFirstFour = index < 4;
@@ -54,8 +61,6 @@ function NavBar() {
               <Link
                 key={to}
                 to={to}
-                // If it's the first 4, show on tablet & desktop ('block'). 
-                // If it's 5+, hide on tablet and only show on desktop ('hidden lg:block').
                 className={`text-sm font-semibold transition-colors ${
                   location.pathname === to
                     ? 'text-blue-600 border-b-2 border-blue-600 pb-0.5'
@@ -69,7 +74,6 @@ function NavBar() {
         </div>
 
         {/* --- HAMBURGER BUTTON --- */}
-        {/* Visible on Mobile and Tablet, Hidden on Desktop (lg:hidden) */}
         <div className="lg:hidden ml-auto">
           <button
             onClick={() => setIsOpen(!isOpen)}
@@ -87,7 +91,6 @@ function NavBar() {
       </div>
 
       {/* --- MOBILE / TABLET DROPDOWN MENU --- */}
-      {/* Only renders if the menu is open, and strictly hides on desktop (lg:hidden) */}
       {isOpen && (
         <div className="lg:hidden bg-white border-t border-gray-100 shadow-lg animate-fade-in absolute w-full left-0 top-full pb-4">
           <div className="px-4 pt-2 space-y-1 max-h-[70vh] overflow-y-auto">
@@ -98,8 +101,6 @@ function NavBar() {
                   key={to}
                   to={to}
                   onClick={() => setIsOpen(false)} 
-                  // If it's the first 4, hide it on tablet dropdown (because it's already in the top bar) but show on mobile ('block md:hidden').
-                  // If it's 5+, always show it in the dropdown ('block').
                   className={`px-3 py-3 rounded-md text-base font-semibold transition-colors ${
                     location.pathname === to
                       ? 'text-blue-600 bg-blue-50'
@@ -125,19 +126,23 @@ function App() {
           <NavBar />
 
           <Routes>
-            <Route path="/"                    element={<EligibilityPage />} />
-            <Route path="/supervisors"         element={<SupervisorsPage />} />
-            <Route path="/phd-professors"      element={<ProfessorsPage />} />
-            <Route path="/progress"            element={<ProgressPage />} />
+            <Route path="/" element={<EligibilityPage />} />
+            <Route path="/supervisors" element={<SupervisorsPage />} />
+            <Route path="/phd-professors" element={<ProfessorsPage />} />
+            <Route path="/progress" element={<ProgressPage />} />
             <Route path="/supervisor-progress" element={<SupervisorProgressPage />} />
-            <Route path="/deadline"            element={<DeadlinePage />} />
-            <Route path="/viva-prep"           element={<VivaPage />} />
-            <Route path="/applications"        element={<ApplicationTrackerPage />} /> 
-            <Route path="/thesis-archive"      element={<ThesisArchivePage />} /> 
-            <Route path="/synopsis"            element={<SynopsisDashboard />} /> 
+            <Route path="/deadline" element={<DeadlinePage />} />
+            <Route path="/viva-prep" element={<VivaPage />} />
+            <Route path="/applications" element={<ApplicationTrackerPage />} /> 
+            <Route path="/thesis-archive" element={<ThesisArchivePage />} /> 
+            <Route path="/synopsis" element={<SynopsisDashboard />} /> 
             <Route path="/portfolio/:studentId" element={<PortfolioPage />} /> 
-            <Route path="/admin/workload"      element={<AdminWorkloadPage />} />
-            <Route path="/research-alignment"  element={<ResearchAlignmentPage />} />
+            <Route path="/admin/workload" element={<AdminWorkloadPage />} />
+            <Route path="/research-alignment" element={<ResearchAlignmentPage />} />
+            <Route path="/dashboard" element={<StudentDashboard />} />
+            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/supervisor-reviews/:supervisorId" element={<SupervisorReviewPage />} />
+            <Route path="/professor-reviews/:professorId" element={<ProfessorReviewPage />} />
           </Routes>
 
           <ChatbotWidget />

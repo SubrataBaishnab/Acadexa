@@ -1,6 +1,9 @@
 const VivaQuestion = require('../models/VivaQuestion');
 const Groq = require('groq-sdk');
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+const Anthropic = require('@anthropic-ai/sdk');
+
+const client = new Anthropic({ apiKey: process.env.CLAUDE_API_KEY });
 
 // POST /api/viva/question/add
 const addQuestion = async (req, res) => {

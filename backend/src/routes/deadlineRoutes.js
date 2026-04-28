@@ -4,15 +4,18 @@ const {
   createDeadline,
   getDeadlineByStudent,
   updateDeadline,
+  getStudentAnalytics,
+  getAdminAnalytics,
+  scheduleMeeting,
 } = require('../controllers/deadlineController');
 
-// POST /api/deadline/create
-router.post('/create', createDeadline);
+router.post('/create',           createDeadline);
+router.put('/update/:id',        updateDeadline);
+router.get('/analytics/admin',   getAdminAnalytics);
+router.get('/analytics/:studentId', getStudentAnalytics);
+router.post('/schedule-meeting', scheduleMeeting);
 
-// GET /api/deadline/:studentId
+// Must be last to prevent interference with /analytics
 router.get('/:studentId', getDeadlineByStudent);
-
-// PUT /api/deadline/update/:id
-router.put('/update/:id', updateDeadline);
 
 module.exports = router;

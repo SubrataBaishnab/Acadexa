@@ -1,47 +1,76 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { vivaService } from '../services/vivaService';
 import FlashCard from '../components/FlashCard';
 import MockViva from '../components/MockViva';
 
-const DIFFICULTIES = ['Easy', 'Medium', 'Hard'];
-const TAGS = ['Research Methodology', 'Literature Review', 'Data Analysis', 'Defense Q&A'];
+const TAGS = ['All', 'Research Methodology', 'Literature Review', 'Data Analysis', 'Defense Q&A'];
+const DIFFICULTIES = ['All', 'Easy', 'Medium', 'Hard'];
 
 const VivaPage = () => {
-  const [activeTab, setActiveTab] = useState('flashcards');
-  const [topic, setTopic] = useState('');
-  const [difficulty, setDifficulty] = useState('Medium');
-  const [count, setCount] = useState(5);
   const [questions, setQuestions] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [activeTag, setActiveTag] = useState('All');
+  const [activeDifficulty, setActiveDifficulty] = useState('All');
+  const [activeTab, setActiveTab] = useState('flashcards'); // 'flashcards' | 'mockviva'
   const [error, setError] = useState('');
+
+  const [topic, setTopic] = useState('');
+  const [generateDifficulty, setGenerateDifficulty] = useState('Medium');
+  const [count, setCount] = useState(5);
   const [generated, setGenerated] = useState(false);
+  const [generating, setGenerating] = useState(false);
+
+  useEffect(() => {
+    fetchQuestions();
+  }, [activeTag, activeDifficulty]);
+
+  const fetchQuestions = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const params = {};
+      if (activeTag !== 'All') params.tag = activeTag;
+      if (activeDifficulty !== 'All') params.difficulty = activeDifficulty;
+      const res = await vivaService.getQuestions(params);
+      setQuestions(res.data || []);
+      setGenerated(true);
+    } catch (err) {
+      setError('Failed to load questions.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleGenerate = async () => {
     if (!topic.trim()) {
       setError('Please enter a topic to generate questions.');
       return;
     }
-    setLoading(true);
+    setGenerating(true);
     setError('');
     setGenerated(false);
     try {
-      const res = await vivaService.generateQuestions({ topic, difficulty, count });
+      const res = await vivaService.generateQuestions({ topic, difficulty: generateDifficulty, count });
       setQuestions(res.data.questions || []);
       setGenerated(true);
+      setActiveTag('All');
+      setActiveDifficulty('All');
     } catch (err) {
       setError('Failed to generate questions. Please try again.');
     } finally {
-      setLoading(false);
+      setGenerating(false);
     }
   };
 
+  const filteredQuestions = questions;
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-10">
-      {/* Header */}
+      {/* Page Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Viva Preparation</h1>
         <p className="text-gray-500 mt-1 text-sm">
-          Generate AI-powered flashcards or simulate a mock viva session for your thesis defense.
+          Browse past defense questions as flashcards or simulate a mock viva session.
         </p>
       </div>
 
@@ -87,11 +116,11 @@ const VivaPage = () => {
           />
 
           <select
-            value={difficulty}
-            onChange={(e) => setDifficulty(e.target.value)}
+            value={generateDifficulty}
+            onChange={(e) => setGenerateDifficulty(e.target.value)}
             className="text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
           >
-            {DIFFICULTIES.map((d) => (
+            {DIFFICULTIES.filter(d => d !== 'All').map((d) => (
               <option key={d} value={d}>{d}</option>
             ))}
           </select>
@@ -108,10 +137,10 @@ const VivaPage = () => {
 
           <button
             onClick={handleGenerate}
-            disabled={loading}
+            disabled={generating}
             className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition-colors whitespace-nowrap"
           >
-            {loading ? '✦ Generating...' : '✦ Generate'}
+            {generating ? '✦ Generating...' : '✦ Generate'}
           </button>
         </div>
 
@@ -123,16 +152,62 @@ const VivaPage = () => {
         )}
       </div>
 
+      {/* Filters */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-4 mb-6">
+        <div className="flex flex-wrap gap-4">
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Topic</p>
+            <div className="flex flex-wrap gap-2">
+              {TAGS.map((tag) => (
+                <button
+                  key={tag}
+                  onClick={() => setActiveTag(tag)}
+                  className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-all ${
+                    activeTag === tag
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-600'
+                  }`}
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Difficulty</p>
+            <div className="flex gap-2">
+              {DIFFICULTIES.map((d) => (
+                <button
+                  key={d}
+                  onClick={() => setActiveDifficulty(d)}
+                  className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-all ${
+                    activeDifficulty === d
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-600'
+                  }`}
+                >
+                  {d}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Loading state */}
-      {loading && (
+      {generating && (
         <div className="text-center py-16">
           <div className="text-3xl mb-3 animate-pulse">✦</div>
           <p className="text-gray-400 text-sm animate-pulse">Claude is generating your questions...</p>
         </div>
       )}
+      {loading && !generating && (
+        <div className="text-center text-gray-400 text-sm py-12 animate-pulse">Loading questions...</div>
+      )}
 
       {/* Empty state */}
-      {!loading && !generated && (
+      {!loading && !generating && !generated && (
         <div className="text-center py-16">
           <div className="text-5xl mb-4">🎓</div>
           <p className="text-gray-500 text-sm font-medium">Enter your thesis topic above to get started</p>
@@ -141,34 +216,41 @@ const VivaPage = () => {
       )}
 
       {/* Flashcards Tab */}
-      {!loading && generated && activeTab === 'flashcards' && (
+      {!loading && !generating && generated && activeTab === 'flashcards' && (
         <>
-          <p className="text-sm text-gray-400 mb-4">
-            {questions.length} question{questions.length !== 1 ? 's' : ''} generated · <span className="text-blue-500">Click a card to reveal the answer</span>
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {questions.map((q, i) => (
-              <FlashCard
-                key={i}
-                question={q.question}
-                answer={q.answer}
-                tag={q.tag}
-                difficulty={q.difficulty}
-              />
-            ))}
-          </div>
+          {filteredQuestions.length === 0 ? (
+            <div className="text-center py-16">
+              <div className="text-4xl mb-3">🔍</div>
+              <p className="text-gray-400 text-sm">No questions found for the selected filters.</p>
+            </div>
+          ) : (
+            <>
+              <p className="text-sm text-gray-400 mb-4">{filteredQuestions.length} question{filteredQuestions.length !== 1 ? 's' : ''} found · <span className="text-blue-500">Click a card to reveal the answer</span></p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {filteredQuestions.map((q, i) => (
+                  <FlashCard
+                    key={q._id || i}
+                    question={q.question}
+                    answer={q.answer}
+                    tag={q.tag}
+                    difficulty={q.difficulty}
+                  />
+                ))}
+              </div>
+            </>
+          )}
         </>
       )}
 
       {/* Mock Viva Tab */}
-      {!loading && generated && activeTab === 'mockviva' && (
-        <div className="max-w-2xl mx-auto">
-          <MockViva questions={questions} />
+      {!loading && !generating && generated && activeTab === 'mockviva' && (
+        <div className="max-w-xl mx-auto">
+          <MockViva questions={filteredQuestions} />
         </div>
       )}
 
       {/* Prompt to generate when switching to mockviva with no questions */}
-      {!loading && !generated && activeTab === 'mockviva' && (
+      {!loading && !generating && !generated && activeTab === 'mockviva' && (
         <div className="text-center py-16 max-w-md mx-auto">
           <div className="text-5xl mb-4">🎓</div>
           <p className="text-gray-500 text-sm font-medium">Generate questions first to start your Mock Viva</p>
