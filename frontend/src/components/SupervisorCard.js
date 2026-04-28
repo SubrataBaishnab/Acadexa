@@ -1,6 +1,6 @@
 import React from 'react';
 
-const SupervisorCard = ({ supervisor, onContact }) => {
+const SupervisorCard = ({ supervisor }) => {
   return (
     <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
       <div className="flex justify-between items-start mb-4">
@@ -52,17 +52,9 @@ const SupervisorCard = ({ supervisor, onContact }) => {
         </div>
       )}
 
-      <div className="flex gap-2">
-        <button
-          onClick={() => onContact(supervisor)}
-          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition-colors"
-        >
-          Contact
-        </button>
-        <button className="flex-1 border border-blue-600 text-blue-600 hover:bg-blue-50 font-semibold py-2 rounded-lg transition-colors">
-          View Profile
-        </button>
-      </div>
+      <button className="w-full border border-blue-600 text-blue-600 hover:bg-blue-50 font-semibold py-2 rounded-lg transition-colors">
+        View Profile
+      </button>
     </div>
   );
 };

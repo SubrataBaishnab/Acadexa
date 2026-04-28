@@ -1,52 +1,50 @@
 import React, { useState, useEffect } from 'react';
 import { useProfessors } from '../hooks/useAdvisors';
 import ProfessorCard from '../components/ProfessorCard';
-import RecommendationFilter from '../components/RecommendationFilter';
+import ProfessorSearchBar from '../components/ProfessorSearchBar';
 
 const ProfessorsPage = () => {
-  const { professors, loading, error, fetchAllProfessors, fetchRecommendations } = useProfessors();
+  const { professors, loading, error, fetchAllProfessors } = useProfessors();
   const [filteredProfessors, setFilteredProfessors] = useState([]);
-  const [view, setView] = useState('all'); // 'all' or 'recommendations'
-  const [filters, setFilters] = useState({
-    researchInterests: [],
-    preferredCountries: [],
-    minMatchScore: 0,
-  });
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     fetchAllProfessors();
   }, []);
 
   useEffect(() => {
-    applyFilters();
-  }, [professors, filters]);
+    applySearch();
+  }, [professors, searchTerm]);
 
-  const applyFilters = () => {
-    let filtered = professors;
-
-    if (view === 'recommendations' && filters.researchInterests.length > 0) {
-      filtered = filtered.filter(p => (p.totalScore || p.matchScore) >= filters.minMatchScore);
+  const applySearch = () => {
+    if (!searchTerm.trim()) {
+      setFilteredProfessors(professors);
+      return;
     }
+
+    const term = searchTerm.toLowerCase().trim();
+    const filtered = professors.filter(p => {
+      // Search by professor name
+      const nameMatch = 
+        p.firstName.toLowerCase().includes(term) || 
+        p.lastName.toLowerCase().includes(term);
+      
+      // Search by country
+      const countryMatch = p.country.toLowerCase().includes(term);
+      
+      // Search by research area
+      const researchMatch = p.researchAreas?.some(area => 
+        area.toLowerCase().includes(term)
+      );
+
+      return nameMatch || countryMatch || researchMatch;
+    });
 
     setFilteredProfessors(filtered);
   };
 
-  const handleGetRecommendations = async () => {
-    if (filters.researchInterests.length === 0) {
-      alert('Please select at least one research interest');
-      return;
-    }
-    await fetchRecommendations(filters.researchInterests, filters.preferredCountries);
-    setView('recommendations');
-  };
-
-  const handleFilterChange = (newFilters) => {
-    setFilters(newFilters);
-  };
-
-  const handleContact = (professor) => {
-    alert(`Contact ${professor.firstName} ${professor.lastName} at ${professor.email}`);
-    // TODO: Implement contact modal or email draft generation
+  const handleSearch = (term) => {
+    setSearchTerm(term);
   };
 
   return (
@@ -60,33 +58,8 @@ const ProfessorsPage = () => {
           </p>
         </div>
 
-        {/* View Toggle */}
-        <div className="flex gap-4 mb-6">
-          <button
-            onClick={() => setView('all')}
-            className={`px-6 py-2 rounded-lg font-semibold transition-colors ${
-              view === 'all'
-                ? 'bg-purple-600 text-white'
-                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            All Professors ({professors.length})
-          </button>
-          <button
-            onClick={() => setView('recommendations')}
-            className={`px-6 py-2 rounded-lg font-semibold transition-colors ${
-              view === 'recommendations'
-                ? 'bg-purple-600 text-white'
-                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            Get Recommendations
-          </button>
-        </div>
-
-        {view === 'recommendations' && (
-          <RecommendationFilter onFilterChange={handleFilterChange} />
-        )}
+        {/* Search Bar */}
+        <ProfessorSearchBar onSearch={handleSearch} />
 
         {/* Error Message */}
         {error && (
@@ -98,36 +71,42 @@ const ProfessorsPage = () => {
         {/* Loading */}
         {loading && (
           <div className="text-center py-12">
-            <div
-              className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"
-            ></div>
-            <p className="mt-4 text-gray-600">Loading professors...</p>
+            <p className="text-gray-600 text-lg">Loading professors...</p>
+          </div>
+        )}
+
+        {/* Results Count */}
+        {!loading && (
+          <div className="mb-6 text-gray-600">
+            <p className="text-sm">
+              {searchTerm ? (
+                <>Showing <strong>{filteredProfessors.length}</strong> result{filteredProfessors.length !== 1 ? 's' : ''} for "{searchTerm}"</>
+              ) : (
+                <>Total <strong>{filteredProfessors.length}</strong> professors available</>
+              )}
+            </p>
           </div>
         )}
 
         {/* Professors Grid */}
-        {!loading && filteredProfessors.length > 0 && (
+        {!loading && filteredProfessors.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredProfessors.map((professor) => (
+            {filteredProfessors.map(professor => (
               <ProfessorCard
                 key={professor._id}
                 professor={professor}
-                onContact={handleContact}
               />
             ))}
           </div>
-        )}
-
-        {/* Empty State */}
-        {!loading && filteredProfessors.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-gray-600 text-lg">
-              {view === 'all'
-                ? 'No professors found. Try again later.'
-                : 'No professors match your criteria. Try adjusting your filters.'}
+        ) : !loading ? (
+          <div className="text-center py-12 bg-white rounded-lg">
+            <p className="text-gray-500 text-lg">
+              {searchTerm 
+                ? `No professors found matching "${searchTerm}". Try different search terms.`
+                : 'No professors available.'}
             </p>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

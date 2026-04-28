@@ -2,48 +2,37 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
 const EligibilityPage = () => {
-  // --- Module 1 State (AI Verifier) ---
   const [file, setFile] = useState(null);
   const [studentId, setStudentId] = useState('');
   const [isScanning, setIsScanning] = useState(false);
   const [result, setResult] = useState(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  
+  // New Dashboard States
+  const [dashboardData, setDashboardData] = useState(null);
+  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
 
-  // --- Module 2 State (Registration Flow) ---
+  // Module 2 States
   const [thesisTitle, setThesisTitle] = useState('');
-  const [teamMembers, setTeamMembers] = useState(''); // Comma separated IDs
+  const [teamMembers, setTeamMembers] = useState('');
   const [supervisors, setSupervisors] = useState([]);
   const [selectedSupervisor, setSelectedSupervisor] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [registrationComplete, setRegistrationComplete] = useState(false);
 
-  // Toggle Dark Mode globally
   useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
+    if (isDarkMode) document.documentElement.classList.add('dark');
+    else document.documentElement.classList.remove('dark');
   }, [isDarkMode]);
 
-  // Fetch Supervisors when AI approves the student
   useEffect(() => {
     if (result && result.status === 'Approved') {
       const fetchSupervisors = async () => {
         try {
           const response = await axios.get('http://127.0.0.1:5000/api/supervisors');
-          
-          // Try to find the array in the response
           let fetchedData = response.data.supervisors || response.data;
-          
-          // Strict check: Is it actually an array?
-          if (Array.isArray(fetchedData) && fetchedData.length > 0) {
-            setSupervisors(fetchedData);
-          } else {
-            throw new Error("Backend did not return a valid array of supervisors.");
-          }
+          if (Array.isArray(fetchedData) && fetchedData.length > 0) setSupervisors(fetchedData);
+          else throw new Error("Not an array");
         } catch (error) {
-          console.warn("⚠️ Teammate's route failed or returned non-array data. Loading dummy data.");
           setSupervisors([
             { supervisor_id: 'prof_001', name: 'Dr. Amitabha Chakrabarty' },
             { supervisor_id: 'prof_002', name: 'Dr. Md. Khalilur Rhaman' },
@@ -55,14 +44,33 @@ const EligibilityPage = () => {
     }
   }, [result]);
 
+  // --- NEW: Check existing status ---
+  const handleCheckStatus = async () => {
+    if (!studentId) return alert("Enter a Student ID to check your status.");
+    setIsCheckingStatus(true);
+    try {
+      const response = await axios.get(`http://127.0.0.1:5000/api/registration/status/${studentId}`);
+      setDashboardData(response.data.data);
+      setResult(null); // Clear any upload results if they exist
+    } catch (error) {
+      if (error.response && error.response.status === 404) {
+        alert("No existing registration found. Please upload your transcript.");
+        setDashboardData(null);
+      } else {
+        alert("Error checking status.");
+      }
+    } finally {
+      setIsCheckingStatus(false);
+    }
+  };
+
   const handleUpload = async (e) => {
     e.preventDefault();
-    if (!file) return alert("Please select a file!");
-    if (!studentId) return alert("Please enter a Student ID!");
+    if (!file || !studentId) return alert("Please select a file and enter Student ID!");
 
     setIsScanning(true);
     setResult(null);
-    setRegistrationComplete(false); // Reset Module 2 state on new scan
+    setDashboardData(null);
 
     const formData = new FormData();
     formData.append('transcript', file);
@@ -70,15 +78,13 @@ const EligibilityPage = () => {
 
     try {
       const response = await axios.post('http://127.0.0.1:5000/api/verify-eligibility', formData);
-      setResult({
-        status: response.data.status,
-        message: response.data.message,
-        credits: response.data.credits,
-        suggestions: response.data.suggestions
-      });
+      setResult(response.data);
     } catch (error) {
-      console.error(error);
-      alert("Upload failed. Make sure your GEMINI_API_KEY is in the .env file!");
+      if (error.response && error.response.status === 400) {
+        alert(error.response.data.message); // Alerts the duplicate prevention message
+      } else {
+        alert("Upload failed. Make sure backend is running.");
+      }
     } finally {
       setIsScanning(false);
     }
@@ -86,180 +92,147 @@ const EligibilityPage = () => {
 
   const handleModule2Submit = async (e) => {
     e.preventDefault();
-    if (!thesisTitle || !selectedSupervisor) return alert("Please fill in the title and select a supervisor.");
-    
+    if (!thesisTitle || !selectedSupervisor) return alert("Fill all required fields.");
     setIsSubmitting(true);
-    
     try {
-      // 1. Team Setup API Call
       const memberArray = teamMembers.split(',').map(id => id.trim()).filter(id => id);
       await axios.put('http://127.0.0.1:5000/api/registration/team-setup', {
-        student_id: studentId,
-        thesis_title: thesisTitle,
-        group_members: memberArray
+        student_id: studentId, thesis_title: thesisTitle, group_members: memberArray
       });
-
-      // 2. Assign Supervisor API Call
-      await axios.put('http://127.0.0.1:5000/api/registration/assign-supervisor', {
-        student_id: studentId,
-        supervisor_id: selectedSupervisor
+      const response = await axios.put('http://127.0.0.1:5000/api/registration/assign-supervisor', {
+        student_id: studentId, supervisor_id: selectedSupervisor
       });
-
-      setRegistrationComplete(true);
+      setDashboardData(response.data.data); // Switch to dashboard view on success
+      setResult(null); 
     } catch (error) {
-      console.error(error);
-      alert("Failed to submit registration request.");
+      alert("Failed to route request.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-darkBg flex flex-col items-center py-12 px-4 sm:px-6 lg:px-8 font-sans transition-colors duration-300">
+    <div className="min-h-screen bg-gray-50 dark:bg-darkBg flex flex-col items-center py-12 px-4 font-sans transition-colors duration-300">
       
-      <button 
-        onClick={() => setIsDarkMode(!isDarkMode)}
-        className="absolute top-6 right-6 p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-yellow-300 shadow-md hover:scale-110 transition-transform"
-      >
-        {isDarkMode ? '☀️ Light' : '🌙 Dark'}
+      <button onClick={() => setIsDarkMode(!isDarkMode)} className="absolute top-6 right-6 p-2 rounded-full bg-gray-200 dark:bg-gray-700 hover:scale-110 transition-transform">
+        {isDarkMode ? '☀️' : '🌙'}
       </button>
 
-      {/* --- MODULE 1: AI VERIFIER CARD --- */}
-      <div className="max-w-md w-full bg-white dark:bg-darkCard rounded-2xl shadow-xl overflow-hidden border border-gray-100 dark:border-gray-800 transition-colors duration-300">
-        <div className="bg-blue-600 dark:bg-gray-900 px-6 py-8 text-center border-b dark:border-gray-800">
-          <h2 className="text-4xl font-extrabold text-white tracking-tight animate-breathing-glow">
-            Acadexa
-          </h2>
-          <p className="text-blue-100 dark:text-blue-400 mt-2 text-sm font-medium">AI Academic Eligibility Verifier</p>
-        </div>
+      {/* --- INITIAL ENTRY & VERIFICATION CARD --- */}
+      {!dashboardData && (
+        <div className="max-w-md w-full bg-white dark:bg-darkCard rounded-2xl shadow-xl overflow-hidden border border-gray-100 dark:border-gray-800">
+          <div className="bg-blue-600 dark:bg-gray-900 px-6 py-8 text-center border-b dark:border-gray-800">
+            <h2 className="text-4xl font-extrabold text-white animate-breathing-glow">Acadexa</h2>
+            <p className="text-blue-100 dark:text-blue-400 mt-2 text-sm font-medium">AI Academic Eligibility Verifier</p>
+          </div>
 
-        <div className="p-8">
-          <form onSubmit={handleUpload} className="space-y-6">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Student ID</label>
+          <div className="p-8">
+            <div className="mb-6 flex gap-2">
               <input 
                 type="text" 
-                placeholder="e.g. 23101397" 
+                placeholder="Student ID (e.g. 23101397)" 
                 value={studentId} 
                 onChange={(e) => setStudentId(e.target.value)} 
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
               />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Upload Transcript</label>
-              <input 
-                type="file" 
-                accept=".pdf,.png,.jpg" 
-                onChange={(e) => setFile(e.target.files[0])} 
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 rounded-lg text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-blue-50 file:text-blue-700 cursor-pointer"
-              />
-            </div>
-            
-            <button 
-              type="submit" 
-              disabled={isScanning}
-              className={`w-full flex justify-center items-center py-3 px-4 rounded-lg text-white font-bold text-lg shadow-md transition-all ${
-                isScanning ? 'bg-blue-400 dark:bg-blue-800 cursor-not-allowed opacity-80' : 'bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 hover:shadow-lg active:scale-95'
-              }`}
-            >
-              {isScanning ? <div className="spinner mr-3"></div> : null}
-              {isScanning ? 'AI is analyzing...' : 'Verify Transcript'}
-            </button>
-          </form>
-        </div>
-      </div>
-
-      {/* --- AI RESULTS DISPLAY --- */}
-      {result && !registrationComplete && (
-        <div className={`mt-8 max-w-md w-full rounded-2xl p-6 shadow-lg border-2 animate-fade-in ${
-          result.status === 'Approved' ? 'bg-green-50 dark:bg-green-900/20 border-green-400 dark:border-green-600' : 'bg-red-50 dark:bg-red-900/20 border-red-400 dark:border-red-600'
-        }`}>
-          <div className="flex justify-between items-center mb-4 border-b border-opacity-20 pb-3 border-gray-300 dark:border-gray-600">
-            <h3 className={`text-2xl font-black ${result.status === 'Approved' ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
-              {result.status}
-            </h3>
-            {result.credits && (
-              <span className="bg-white dark:bg-gray-800 px-3 py-1 rounded-md shadow-sm border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 font-bold text-sm">
-                Credits: {result.credits}
-              </span>
-            )}
-          </div>
-          <p className="text-gray-700 dark:text-gray-300 font-medium">{result.message}</p>
-        </div>
-      )}
-
-      {/* --- MODULE 2: REGISTRATION FORM (Fades in ONLY if approved) --- */}
-      {result && result.status === 'Approved' && !registrationComplete && (
-        <div className="mt-8 max-w-md w-full bg-white dark:bg-darkCard rounded-2xl p-6 shadow-xl border border-gray-100 dark:border-gray-800 animate-fade-in">
-          <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4 border-b border-gray-200 dark:border-gray-700 pb-2">
-            Step 2: Thesis Registration
-          </h3>
-          
-          <form onSubmit={handleModule2Submit} className="space-y-5">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Thesis Title</label>
-              <input 
-                type="text" 
-                required
-                value={thesisTitle}
-                onChange={(e) => setThesisTitle(e.target.value)}
-                placeholder="e.g. AI-driven Fraud Detection"
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-secondary"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Co-Members (Student IDs)</label>
-              <input 
-                type="text" 
-                value={teamMembers}
-                onChange={(e) => setTeamMembers(e.target.value)}
-                placeholder="e.g. 23101455, 23101688"
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-secondary"
-              />
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Separate IDs with a comma</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Preferred Supervisor</label>
-              <select 
-                required
-                value={selectedSupervisor}
-                onChange={(e) => setSelectedSupervisor(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-secondary"
+              <button 
+                type="button"
+                onClick={handleCheckStatus}
+                disabled={isCheckingStatus}
+                className="bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white px-4 py-2 rounded-lg font-bold hover:bg-gray-300 transition-colors whitespace-nowrap"
               >
-                <option value="" disabled>Select a Professor</option>
-                {/* Safe map: Only run if supervisors is an array */}
-                {Array.isArray(supervisors) && supervisors.map((prof, index) => (
-                  <option key={index} value={prof.supervisor_id || prof._id || `dummy_${index}`}>
-                    {prof.name || 'Unknown Professor'}
-                  </option>
-                ))}
-              </select>
+                {isCheckingStatus ? '...' : 'Check Status'}
+              </button>
             </div>
+            
+            <form onSubmit={handleUpload} className="space-y-6 border-t border-gray-200 dark:border-gray-700 pt-6">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">New Registration? Upload Transcript</label>
+                <input 
+                  type="file" 
+                  accept=".pdf,.png,.jpg" 
+                  onChange={(e) => setFile(e.target.files[0])} 
+                  className="w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-blue-50 file:text-blue-700 cursor-pointer"
+                />
+              </div>
+              
+              <button 
+                type="submit" 
+                disabled={isScanning}
+                className={`w-full py-3 px-4 rounded-lg text-white font-bold text-lg shadow-md transition-all ${
+                  isScanning ? 'bg-blue-400 dark:bg-blue-800 cursor-not-allowed opacity-80' : 'bg-blue-600 hover:bg-blue-700 active:scale-95'
+                }`}
+              >
+                Verify Transcript
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
-            <button 
-              type="submit" 
-              disabled={isSubmitting}
-              className={`w-full py-3 px-4 rounded-lg text-white font-bold text-lg shadow-md transition-all ${
-                isSubmitting ? 'bg-purple-400 cursor-not-allowed opacity-80' : 'bg-purple-600 hover:bg-purple-700 shadow-purple-500/50 hover:shadow-lg'
-              }`}
-            >
-              {isSubmitting ? 'Routing Request...' : 'Submit Registration Request'}
+      {/* --- NEW: SKELETON LOADER (Shows while AI is thinking) --- */}
+      {isScanning && (
+        <div className="mt-8 max-w-md w-full rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-darkCard animate-pulse">
+          <div className="h-6 bg-gray-300 dark:bg-gray-700 rounded w-1/3 mb-4"></div>
+          <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-3/4 mb-2"></div>
+          <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-full mb-2"></div>
+          <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-5/6 mb-6"></div>
+          <div className="h-24 bg-gray-100 dark:bg-gray-800 rounded w-full border border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center">
+             <span className="text-gray-400 font-medium">Extracting credits and mapping courses...</span>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODULE 2 REGISTRATION FORM --- */}
+      {!isScanning && result && result.status === 'Approved' && !dashboardData && (
+        <div className="mt-8 max-w-md w-full bg-white dark:bg-darkCard rounded-2xl p-6 shadow-xl border border-gray-100 dark:border-gray-800 animate-fade-in">
+          <div className="bg-green-50 dark:bg-green-900/20 border border-green-400 p-4 rounded-lg mb-6">
+            <h3 className="text-lg font-bold text-green-700 dark:text-green-400">✅ {result.status} (Credits: {result.credits})</h3>
+            <p className="text-sm text-green-600 dark:text-green-300 mt-1">{result.message}</p>
+          </div>
+
+          <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4 border-b pb-2 dark:border-gray-700">Step 2: Team Formation</h3>
+          <form onSubmit={handleModule2Submit} className="space-y-5">
+            <input type="text" required value={thesisTitle} onChange={(e) => setThesisTitle(e.target.value)} placeholder="Thesis Title" className="w-full px-3 py-2 rounded-lg border dark:bg-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-secondary"/>
+            <input type="text" value={teamMembers} onChange={(e) => setTeamMembers(e.target.value)} placeholder="Co-Members IDs (Comma separated)" className="w-full px-3 py-2 rounded-lg border dark:bg-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-secondary"/>
+            <select required value={selectedSupervisor} onChange={(e) => setSelectedSupervisor(e.target.value)} className="w-full px-3 py-2 rounded-lg border dark:bg-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-secondary">
+              <option value="" disabled>Select Supervisor</option>
+              {Array.isArray(supervisors) && supervisors.map((prof, i) => <option key={i} value={prof.supervisor_id}>{prof.name}</option>)}
+            </select>
+            <button type="submit" disabled={isSubmitting} className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-bold shadow-md">
+              {isSubmitting ? 'Routing...' : 'Submit Request'}
             </button>
           </form>
         </div>
       )}
 
-      {/* --- SUCCESS STATE --- */}
-      {registrationComplete && (
-        <div className="mt-8 max-w-md w-full rounded-2xl p-8 bg-purple-50 dark:bg-purple-900/20 border-2 border-purple-400 dark:border-purple-500 shadow-lg text-center animate-fade-in">
-          <div className="text-5xl mb-4">🎉</div>
-          <h3 className="text-2xl font-black text-purple-800 dark:text-purple-300 mb-2">Request Sent!</h3>
-          <p className="text-gray-700 dark:text-gray-300">
-            Your thesis group for <strong>"{thesisTitle}"</strong> has been successfully routed to the supervisor for final approval.
-          </p>
+      {/* --- NEW: STUDENT DASHBOARD VIEW --- */}
+      {dashboardData && (
+        <div className="mt-8 max-w-md w-full bg-white dark:bg-darkCard rounded-2xl p-8 shadow-xl border border-gray-100 dark:border-gray-800 animate-fade-in text-center">
+          <div className="w-20 h-20 mx-auto bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mb-4">
+             <span className="text-3xl">🎓</span>
+          </div>
+          <h2 className="text-2xl font-black text-gray-800 dark:text-white mb-1">Welcome back!</h2>
+          <p className="text-gray-500 dark:text-gray-400 mb-6">Student ID: {dashboardData.student_id}</p>
+          
+          <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg text-left space-y-3 border border-gray-200 dark:border-gray-700">
+             <p><span className="font-bold text-gray-700 dark:text-gray-300">Thesis Title:</span> <span className="text-blue-600 dark:text-blue-400">{dashboardData.thesis_title}</span></p>
+             <p><span className="font-bold text-gray-700 dark:text-gray-300">Current Status:</span> 
+               <span className={`ml-2 px-2 py-1 rounded text-xs font-bold ${
+                 dashboardData.status.includes('Pending') ? 'bg-yellow-100 text-yellow-800' : 
+                 dashboardData.status.includes('Approved') ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+               }`}>
+                 {dashboardData.status}
+               </span>
+             </p>
+             {dashboardData.group_members && dashboardData.group_members.length > 0 && (
+               <p><span className="font-bold text-gray-700 dark:text-gray-300">Co-Members:</span> {dashboardData.group_members.join(', ')}</p>
+             )}
+          </div>
+          
+          <button onClick={() => setDashboardData(null)} className="mt-6 text-sm text-blue-500 hover:underline">
+            ← Check another ID
+          </button>
         </div>
       )}
 

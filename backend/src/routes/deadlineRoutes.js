@@ -4,15 +4,12 @@ const {
   createDeadline,
   getDeadlineByStudent,
   updateDeadline,
+  analyzeBurnout,
 } = require('../controllers/deadlineController');
 
-// POST /api/deadline/create
 router.post('/create', createDeadline);
-
-// GET /api/deadline/:studentId
+router.post('/burnout', analyzeBurnout);        // ← moved UP above /:studentId
 router.get('/:studentId', getDeadlineByStudent);
-
-// PUT /api/deadline/update/:id
 router.put('/update/:id', updateDeadline);
 
 module.exports = router;

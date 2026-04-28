@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const multer = require('multer');
 const fs = require('fs');
-const pdfParse = require('pdf-parse'); // NEW: The free PDF extractor
+const pdfParse = require('pdf-parse'); 
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 require('dotenv').config();
 
@@ -13,6 +13,9 @@ const chatbotRoutes = require('./routes/chatbotRoutes');
 const deadlineRoutes = require('./routes/deadlineRoutes');
 const vivaRoutes = require('./routes/vivaRoutes');
 const progressRoutes = require('./routes/progressRoutes');
+const thesisArchiveRoutes = require('./routes/thesisArchiveRoutes');
+const researchAlignmentRoutes = require('./routes/researchAlignmentRoutes');
+const xlsx = require("xlsx");
 
 const app = express();
 
@@ -46,11 +49,9 @@ async function callGemini(modelName, prompt, path, mimeType, isPdf) {
     const model = genAI.getGenerativeModel({ model: modelName });
     
     if (isPdf) {
-        // Text-only request
         const result = await model.generateContent(prompt);
         return result.response.text();
     } else {
-        // Vision request
         const imagePart = { inlineData: { data: Buffer.from(fs.readFileSync(path)).toString("base64"), mimeType } };
         const result = await model.generateContent([prompt, imagePart]);
         return result.response.text();
@@ -58,18 +59,7 @@ async function callGemini(modelName, prompt, path, mimeType, isPdf) {
 }
 
 // --- OPENROUTER WRAPPER ---
-async function callOpenRouter(prompt, path, mimeType, isPdf) {
-    let messageContent = prompt; // Default to standard string for pure text (PDFs)
-
-    if (!isPdf) {
-        // Switch to array format for vision (Images)
-        const base64Image = Buffer.from(fs.readFileSync(path)).toString("base64");
-        messageContent = [
-            { type: "text", text: prompt },
-            { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Image}` } }
-        ];
-    }
-
+async function callOpenRouter(prompt) {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -77,11 +67,10 @@ async function callOpenRouter(prompt, path, mimeType, isPdf) {
             "Content-Type": "application/json"
         },
         body: JSON.stringify({
-            model: "google/gemini-1.5-pro", 
-            messages: [{ role: "user", content: messageContent }]
+            model: "google/gemini-1.5-pro",
+            messages: [{ role: "user", content: prompt }]
         })
     });
-
     if (!response.ok) {
         const errText = await response.text();
         throw new Error(`OpenRouter Status ${response.status}: ${errText}`);
@@ -91,19 +80,7 @@ async function callOpenRouter(prompt, path, mimeType, isPdf) {
 }
 
 // --- GROQ WRAPPER ---
-async function callGroq(prompt, path, mimeType, isPdf) {
-    let messageContent = prompt; // Default to string for text
-    let targetModel = isPdf ? "llama3-8b-8192" : "llama-3.2-11b-vision-preview";
-
-    if (!isPdf) {
-        // Switch to array format for vision
-        const base64Image = Buffer.from(fs.readFileSync(path)).toString("base64");
-        messageContent = [
-            { type: "text", text: prompt },
-            { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Image}` } }
-        ];
-    }
-    
+async function callGroqText(prompt) {
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -111,12 +88,12 @@ async function callGroq(prompt, path, mimeType, isPdf) {
             "Content-Type": "application/json"
         },
         body: JSON.stringify({
-            model: targetModel, 
-            messages: [{ role: "user", content: messageContent }],
-            temperature: 0.1
+            model: "llama-3.3-70b-versatile",
+            messages: [{ role: "user", content: prompt }],
+            temperature: 0.7,
+            max_tokens: 1024,
         })
     });
-
     if (!response.ok) {
         const errText = await response.text();
         throw new Error(`Groq Status ${response.status}: ${errText}`);
@@ -125,10 +102,43 @@ async function callGroq(prompt, path, mimeType, isPdf) {
     return data.choices[0].message.content;
 }
 
-// --- THE FALLBACK ORCHESTRATOR ---
+// --- GROQ WRAPPER (vision/image - for eligibility) ---
+async function callGroqVision(prompt, path, mimeType, isPdf) {
+    let messageContent = prompt;
+    let targetModel = isPdf ? "llama3-8b-8192" : "llama-3.2-11b-vision-preview";
+
+    if (!isPdf) {
+        const base64Image = Buffer.from(fs.readFileSync(path)).toString("base64");
+        messageContent = [
+            { type: "text", text: prompt },
+            { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Image}` } }
+        ];
+    }
+
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            model: targetModel,
+            messages: [{ role: "user", content: messageContent }],
+            temperature: 0.1
+        })
+    });
+    if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Groq Status ${response.status}: ${errText}`);
+    }
+    const data = await response.json();
+    return data.choices[0].message.content;
+}
+
+// --- FALLBACK ORCHESTRATOR (for eligibility - vision/pdf) ---
 async function analyzeTranscriptWithFallback(prompt, path, mimeType, isPdf) {
     const providers = ['gemini-2.5-flash', 'gemini-1.5-pro', 'openrouter', 'groq'];
-    
+
     console.log("\n=======================================================");
     console.log(`🤖 INITIATING AI ROUTER [Mode: ${isPdf ? 'TEXT (PDF)' : 'VISION (IMAGE)'}]`);
     console.log("=======================================================");
@@ -136,10 +146,10 @@ async function analyzeTranscriptWithFallback(prompt, path, mimeType, isPdf) {
     for (const provider of providers) {
         try {
             console.log(`⏳ Accessing: [${provider.toUpperCase()}]...`);
-            
+
             let resultText;
-            if (provider === 'openrouter') resultText = await callOpenRouter(prompt, path, mimeType, isPdf);
-            else if (provider === 'groq') resultText = await callGroq(prompt, path, mimeType, isPdf);
+            if (provider === 'openrouter') resultText = await callOpenRouter(prompt);
+            else if (provider === 'groq') resultText = await callGroqVision(prompt, path, mimeType, isPdf);
             else resultText = await callGemini(provider, prompt, path, mimeType, isPdf);
 
             console.log(`✅ SUCCESS! Processed by: [${provider.toUpperCase()}]`);
@@ -148,20 +158,111 @@ async function analyzeTranscriptWithFallback(prompt, path, mimeType, isPdf) {
 
         } catch (error) {
             console.log(`❌ FAILED: [${provider.toUpperCase()}] -> ${error.message}`);
-            continue; 
+            continue;
         }
     }
     throw new Error("Critical: All AI models failed.");
 }
 
-// --- THE ROUTE ---
+// --- FALLBACK ORCHESTRATOR (for text-only features: research alignment, burnout) ---
+async function analyzeTextWithFallback(prompt) {
+    const providers = ['groq', 'openrouter', 'gemini-1.5-pro', 'gemini-2.5-flash'];
+
+    console.log("\n=======================================================");
+    console.log(`🤖 INITIATING AI ROUTER [Mode: TEXT]`);
+    console.log("=======================================================");
+
+    for (const provider of providers) {
+        try {
+            console.log(`⏳ Accessing: [${provider.toUpperCase()}]...`);
+
+            let resultText;
+            if (provider === 'groq') resultText = await callGroqText(prompt);
+            else if (provider === 'openrouter') resultText = await callOpenRouter(prompt);
+            else resultText = await callGemini(provider, prompt, null, null, true);
+
+            console.log(`✅ SUCCESS! Processed by: [${provider.toUpperCase()}]`);
+            console.log("=======================================================\n");
+            return resultText;
+
+        } catch (error) {
+            console.log(`❌ FAILED: [${provider.toUpperCase()}] -> ${error.message}`);
+            continue;
+        }
+    }
+    throw new Error("Critical: All AI models failed.");
+}
+
+// Export fallback for use in controllers
+app.locals.analyzeTextWithFallback = analyzeTextWithFallback;
+
+// --- STUDENT STATUS ROUTE ---
+app.get('/api/registration/status/:student_id', async (req, res) => {
+    try {
+        const record = await Registration.findOne({ student_id: req.params.student_id });
+        if (!record) {
+            return res.status(404).json({ message: "No registration found." });
+        }
+        res.json({ data: record });
+    } catch (error) {
+        res.status(500).json({ error: "Server error checking status." });
+    }
+});
+
+app.post('/api/import-excel', upload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ message: "No Excel file uploaded" });
+        }
+
+        const workbook = xlsx.readFile(req.file.path);
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const data = xlsx.utils.sheet_to_json(sheet);
+
+        console.log("📊 Excel Data:", data);
+
+        await Registration.insertMany(
+            data.map(item => ({
+                student_id: item.student_id || item.StudentID,
+                thesis_title: item.thesis_title || "Imported",
+                group_members: item.group_members || [],
+                supervisor_id: item.supervisor_id || null,
+                status: item.status || "Imported"
+            }))
+        );
+
+        res.json({
+            message: "Excel imported successfully",
+            count: data.length
+        });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Import failed" });
+    } finally {
+        if (req.file && fs.existsSync(req.file.path)) {
+            fs.unlinkSync(req.file.path);
+        }
+    }
+});
+
 app.post('/api/verify-eligibility', upload.single('transcript'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ message: "No transcript uploaded." });
-        
+
         const studentId = req.body.student_id || "Unknown";
+
+        const existingRecord = await Registration.findOne({ student_id: studentId });
+        if (existingRecord) {
+            if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+            return res.status(400).json({
+                error: "Duplicate Entry",
+                message: `Student ${studentId} already has a registration in progress. Status: ${existingRecord.status}`
+            });
+        }
+
         let isPdf = req.file.mimetype === 'application/pdf';
-        
+
         let basePrompt = `
             You are an expert BRAC University academic advisor. Look at this transcript data.
             1. Calculate the total completed credits.
@@ -177,24 +278,23 @@ app.post('/api/verify-eligibility', upload.single('transcript'), async (req, res
             }
         `;
 
-        // If it's a PDF, extract the text and staple it to the bottom of the prompt!
         if (isPdf) {
             console.log("📄 PDF detected! Extracting raw text locally...");
             const dataBuffer = fs.readFileSync(req.file.path);
             const pdfData = await pdfParse(dataBuffer);
             basePrompt += `\n\n--- EXTRACTED TRANSCRIPT TEXT ---\n${pdfData.text}\n---------------------------------`;
         }
-        
+
         let aiResponseText = await analyzeTranscriptWithFallback(basePrompt, req.file.path, req.file.mimetype, isPdf);
-        
+
         aiResponseText = aiResponseText.replace(/```json/gi, '').replace(/```/g, '').trim();
         const aiDecision = JSON.parse(aiResponseText);
         const finalStatus = aiDecision.eligible ? "Eligible - Pending Supervisor" : "Denied - Missing Prerequisites";
 
         const newRecord = await Registration.create({ student_id: studentId, thesis_title: "Pending Title", status: finalStatus });
 
-        res.json({ 
-            status: aiDecision.eligible ? "Approved" : "Denied", 
+        res.json({
+            status: aiDecision.eligible ? "Approved" : "Denied",
             message: aiDecision.reason,
             credits: aiDecision.total_credits,
             suggestions: aiDecision.suggested_courses
@@ -216,7 +316,7 @@ app.put('/api/registration/team-setup', async (req, res) => {
     try {
         const { student_id, thesis_title, group_members } = req.body;
         const updatedRecord = await Registration.findOneAndUpdate(
-            { student_id: student_id }, 
+            { student_id: student_id },
             { thesis_title: thesis_title || "Pending Title", group_members: group_members || [] },
             { new: true }
         );
@@ -238,12 +338,17 @@ app.put('/api/registration/assign-supervisor', async (req, res) => {
     } catch (error) { res.status(500).json({ error: "Failed." }); }
 });
 
+// =========================================================================
+// --- ROUTES ---
+// =========================================================================
 app.use('/api/supervisors', supervisorRoutes);
 app.use('/api/professors', professorRoutes);
 app.use('/api/chatbot', chatbotRoutes);
 app.use('/api/deadline', deadlineRoutes);
 app.use('/api/viva', vivaRoutes);
 app.use('/api/progress', progressRoutes);
+app.use('/api/archive', thesisArchiveRoutes);
+app.use('/api/research-alignment', researchAlignmentRoutes);
 
 app.get('/api/health', (req, res) => { res.json({ status: 'Server is running' }); });
 

@@ -1,10 +1,13 @@
 import apiClient from './apiService';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:1002/api';
-
 // Submit a new progress update (Student)
 export const submitProgressUpdate = async (data) => {
   return apiClient.post('/progress', data);
+};
+
+// Edit a pending progress update (Student)
+export const editProgressUpdate = async (id, data) => {
+  return apiClient.patch(`/progress/${id}`, data);
 };
 
 // Get all updates for a student
